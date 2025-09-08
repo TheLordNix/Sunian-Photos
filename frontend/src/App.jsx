@@ -6,6 +6,7 @@ import SetupPage from "./pages/setupPage";
 import UploadPage from "./pages/uploadPage";
 import EditPage from "./pages/editPage";
 import IndexPage from "./pages/indexPage";
+import CommentPage from "./pages/commentPage";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -32,6 +33,7 @@ function App() {
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/edit" element={<EditPage />} />
             <Route path="/index" element={<IndexPage />} />
+            <Route path="/comment" element={<CommentPage />} />
           </>
         )}
 
