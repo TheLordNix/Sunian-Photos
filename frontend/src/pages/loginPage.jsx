@@ -10,7 +10,7 @@ function LoginPage({ setIsLoggedIn }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cyan-500">
+    <div className="min-h-screen flex items-center justify-center bg-[rgba(121,255,255,1)]">
       <div className="bg-white p-8 rounded-xl shadow-lg text-center">
         <h1 className="text-3xl font-bold mb-4">Login</h1>
         <input
