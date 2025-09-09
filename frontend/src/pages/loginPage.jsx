@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function LoginPage({ setIsLoggedIn }) {
   const [input, setInput] = useState("");
+  const navigate = useNavigate();
 
   const handleLogin = () => {
     if (input.trim() !== "") {
       setIsLoggedIn(true);
+      localStorage.setItem("isLoggedIn", "true"); // persist login
+      navigate("/home"); // redirect to home
     }
   };
 
@@ -18,6 +22,7 @@ function LoginPage({ setIsLoggedIn }) {
           placeholder="Enter anything..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleLogin()}
           className="border rounded px-4 py-2 w-full mb-4"
         />
         <button

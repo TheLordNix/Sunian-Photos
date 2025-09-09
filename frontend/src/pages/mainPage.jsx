@@ -1,34 +1,59 @@
 import { useNavigate } from "react-router-dom";
+import PaintBrushTool from "../components/paintbrushTool";
+import { useTheme } from "../colorCustomiser";
 
 function MainPage({ setIsLoggedIn }) {
   const navigate = useNavigate();
+  const { colors } = useTheme();
 
   return (
-        <div className="min-h-screen bg-[rgba(121,255,255,1)] flex items-center justify-center relative">
-            {/* Top-right paintbrush */}
-        <button className="absolute top-4 left-4 bg-white p-4 rounded-full shadow-md hover:bg-gray-200 transition">
-            🎨
-        </button>
+    <div
+      className="min-h-screen flex items-center justify-center relative"
+      style={{ backgroundColor: colors.bg }}
+    >
+      <PaintBrushTool />
 
-            {/* Center box */}
-            <div className="bg-[rgba(240,192,133,1)] rounded-2xl shadow-lg p-10 text-center w-full max-w-4xl min-h-[480px]">
-                <h1 className="text-8xl font-bold text-[rgba(255,102,0,1)] mb-8">
-                    Sunian Photos
-                </h1>
+      <div
+        className="rounded-2xl shadow-lg p-10 text-center w-full max-w-4xl min-h-[480px]"
+        style={{ backgroundColor: colors.box }}
+      >
+        <h1
+          className="text-8xl font-bold mb-8"
+          style={{ color: colors.title }}
+        >
+          Sunian Photos
+        </h1>
 
-            {/* Buttons */}
-            <div className="flex flex-wrap justify-center gap-4 mb-8">
-                <button className="bg-blue-500 text-white text-xl px-9 py-6 rounded-lg" onClick={() => navigate("/setup")}>SETUP</button>
-                <button className="bg-blue-500 text-white text-xl px-12 py-6 rounded-lg" onClick={() => navigate("/upload")}>UPLOAD</button>
-                <button className="bg-blue-500 text-white text-xl px-12 py-6 rounded-lg" onClick={() => navigate("/comment")}>COMMENTS</button>
-                <button className="bg-blue-500 text-white text-xl px-9 py-6 rounded-lg" onClick={() => navigate("/edit")}>EDIT</button>
-            </div>
-
-            <div className="border-t border-orange-400 pt-6 gap-4 mb-8 flex flex-wrap justify-center">
-                <button className="bg-blue-900 text-white text-xl px-12 py-6 rounded-lg" onClick={() => navigate("/index")}>INDEX</button>
-                <button className="bg-red-500 text-white text-xl px-9 py-6 rounded-lg" onClick={() => setIsLoggedIn(false)}>LOGOUT</button>
-            </div>
+        <div className="flex flex-wrap justify-center gap-4 mb-8">
+          {["SETUP", "UPLOAD", "COMMENTS", "EDIT"].map((label) => (
+            <button
+              key={label}
+              style={{ backgroundColor: colors.button, color: colors.text }}
+              className="text-xl px-9 py-6 rounded-lg"
+              onClick={() => navigate("/" + label.toLowerCase())}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+
+        <div className="border-t border-orange-400 pt-6 gap-4 mb-8 flex flex-wrap justify-center">
+          <button
+            style={{ backgroundColor: colors.button, color: colors.text }}
+            className="text-xl px-12 py-6 rounded-lg"
+            onClick={() => navigate("/index")}
+          >
+            INDEX
+          </button>
+          <button
+            style={{ backgroundColor: colors.button, color: colors.text }}
+            className="text-xl px-9 py-6 rounded-lg"
+            onClick={() => setIsLoggedIn(false)}
+          >
+            LOGOUT
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

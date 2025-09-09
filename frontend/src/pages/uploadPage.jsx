@@ -1,33 +1,31 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import PaintBrushTool from "../components/paintbrushTool";
+import { useTheme } from "../colorCustomiser";
 
 function UploadPage() {
+  const { colors } = useTheme();
   const [files, setFiles] = useState([]);
   const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
 
   const handleFileChange = (e) => {
     setFiles(Array.from(e.target.files));
-    setSubmitted(false); // reset previews if new selection
+    setSubmitted(false);
   };
 
   const handleSubmit = () => {
-    if (files.length > 0) {
-      setSubmitted(true);
-    }
+    if (files.length > 0) setSubmitted(true);
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[rgba(121,255,255,1)] relative">
-      {/* Top-left paintbrush */}
-      <button className="absolute top-4 left-4 bg-white p-4 rounded-full shadow-md hover:bg-gray-200 transition">
-        🎨
-      </button>
+    <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: colors.bg }}>
+      <PaintBrushTool />
 
-      {/* Center container */}
       <div className="flex flex-col items-center justify-center flex-1 px-4">
-        <div className="bg-[rgba(240,192,133,1)] rounded-2xl shadow-xl p-8 text-center w-full max-w-3xl min-h-[300px] flex flex-col space-y-6">
-          {/* Back button */}
+        <div className="rounded-2xl shadow-xl p-8 text-center w-full max-w-3xl min-h-[300px] flex flex-col space-y-6"
+          style={{ backgroundColor: colors.box }}
+        >
           <div className="w-full flex justify-start">
             <button
               onClick={() => navigate("/")}
@@ -37,12 +35,10 @@ function UploadPage() {
             </button>
           </div>
 
-          {/* Title */}
-          <h1 className="text-4xl font-bold text-gray-800 drop-shadow">
+          <h1 className="text-4xl font-bold drop-shadow" style={{ color: colors.title }}>
             Upload Page
           </h1>
 
-          {/* File input (hidden) */}
           <input
             type="file"
             id="fileInput"
@@ -52,36 +48,37 @@ function UploadPage() {
             onChange={handleFileChange}
           />
 
-          {/* Action buttons */}
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <label
               htmlFor="fileInput"
-              className="px-6 py-3 bg-gray-100 rounded-xl shadow-md hover:bg-gray-200 transition font-medium cursor-pointer"
+              className="px-6 py-3 rounded-xl shadow-md hover:bg-gray-200 transition font-medium cursor-pointer"
+              style={{ backgroundColor: colors.button, color: colors.text }}
             >
               Select Photos
             </label>
             <button
               onClick={handleSubmit}
-              className="px-6 py-3 bg-blue-500 text-white rounded-xl shadow-md hover:bg-blue-600 transition font-medium"
+              className="px-6 py-3 rounded-xl shadow-md hover:opacity-90 transition font-medium"
+              style={{ backgroundColor: colors.button, color: colors.text }}
             >
               Submit
             </button>
           </div>
 
-          {/* Preview area */}
           {submitted && files.length > 0 && (
             <div className="mt-6 flex flex-wrap justify-center gap-6">
               {files.map((file, idx) => (
                 <div
                   key={idx}
-                  className="bg-gray-200 p-3 rounded-xl shadow-md flex flex-col items-center"
+                  className="p-3 rounded-xl shadow-md flex flex-col items-center"
+                  style={{ backgroundColor: colors.imageBox }}
                 >
                   <img
                     src={URL.createObjectURL(file)}
                     alt={file.name}
                     className="max-w-[300px] max-h-[300px] rounded-lg object-contain"
                   />
-                  <p className="text-sm mt-2 text-gray-700 truncate max-w-[280px]">
+                  <p className="text-sm mt-2 truncate max-w-[280px]" style={{ color: colors.text }}>
                     {file.name}
                   </p>
                 </div>
