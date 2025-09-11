@@ -46,5 +46,8 @@ class Image(Base):
     album_id = Column(String(36), ForeignKey("albums.id"), nullable=True)
     album = relationship("Album", back_populates="images")
 class UserLogin(Base):
+    __allow_unmapped__ = True
+    __tablename__ = "user_logins"
+    id = Column(Integer, primary_key=True, index=True)
     username: str
     password: str

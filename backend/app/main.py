@@ -7,16 +7,23 @@ from app.db.base import Base
 from app.db.session import engine
 from app.routes import images as images_router
 import os
-from firebase_admin import credentials, firestore, initialize_app
+from firebase_admin import credentials, firestore, initialize_app, auth
 import requests
 import os
 from dotenv import load_dotenv
 from pathlib import Path
 from datetime import datetime
-from config.cloudinary import *
+from .config import settings
 from cloudinary.uploader import upload
 import json
 from typing import List
+from fastapi import FastAPI, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from app.database import get_db, create_db_and_tables # Assuming you have these
+from app.models import UserLogin, User # Pydantic and SQLAlchemy models
+from app.auth import verify_password, create_access_token
+from typing import Optional # Import Optional
+
 load_dotenv()
 
 # Initialize Firebase
@@ -38,14 +45,29 @@ app = FastAPI(title=settings.APP_NAME)
 Base.metadata.create_all(bind=engine)
 
 # CORS
-origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+origins = [
+    "http://localhost",
+    "http://localhost:3000",  # Your frontend's address
+    "http://localhost:5173",  # Common Vite development port
+]
+
+# Add the middleware to your app
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
 )
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    yield
+
+app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
 # Mount media static path
 media_path = os.path.abspath(settings.STORAGE_LOCAL_PATH)
@@ -54,6 +76,8 @@ app.mount("/media", StaticFiles(directory=media_path), name="media")
 
 # Register routers
 app.include_router(images_router.router)
+
+bearer_scheme = HTTPBearer()
 
 async def verify_token(token: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
@@ -175,7 +199,30 @@ async def get_all_photos():
         photos.append(photo_data)
     return photos
 
+class UserLogin(BaseModel):
+    username: str
+    password: str
 # Example endpoint for a visitor (no authentication required)
 @app.get("/public")
 async def public_route():
     return {"message": "This is a public route accessible to anyone."}
+@app.post("/login")
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    # 1. Look up the user by username in the database
+    user = db.query(User).filter(User.username == credentials.username).first()
+
+    # 2. If the user doesn't exist or the password is incorrect, raise an error
+    if not user or not verify_password(credentials.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 3. Create a JWT access token for the authenticated user
+    access_token = create_access_token(
+        data={"sub": user.username}
+    )
+
+    # 4. Return the token to the client
+    return {"access_token": access_token, "token_type": "bearer"}

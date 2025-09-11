@@ -1,21 +1,79 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { uploadPhoto } from "../api"; 
 import PaintBrushTool from "../components/paintbrushTool";
 import { useTheme } from "../colorCustomiser";
 
 function UploadPage() {
   const { colors } = useTheme();
   const [files, setFiles] = useState([]);
-  const [submitted, setSubmitted] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
   const navigate = useNavigate();
 
   const handleFileChange = (e) => {
     setFiles(Array.from(e.target.files));
-    setSubmitted(false);
+    setUploadMessage("");
   };
 
-  const handleSubmit = () => {
-    if (files.length > 0) setSubmitted(true);
+  const handleSubmit = async () => {
+    if (files.length === 0) {
+      setUploadMessage("Please select at least one file to upload.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadMessage("Uploading...");
+
+    try {
+      // Cloudinary configuration from .env file
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+      if (!cloudName || !uploadPreset) {
+        throw new Error("Cloudinary credentials not found in environment variables.");
+      }
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+
+        // Upload the image to Cloudinary
+        const cloudinaryResponse = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
+
+        if (!cloudinaryResponse.ok) {
+          throw new Error('Cloudinary upload failed.');
+        }
+
+        const data = await cloudinaryResponse.json();
+        const photoUrl = data.secure_url;
+
+        // Create the photo data object for your FastAPI backend
+        const photoData = {
+          title: file.name,
+          url: photoUrl,
+          description: "Uploaded via frontend."
+        };
+
+        // Send the photo data to your FastAPI backend
+        await uploadPhoto(photoData);
+      }
+
+      setUploadMessage("All photos uploaded successfully!");
+      setFiles([]);
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setUploadMessage(`Upload failed: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -60,12 +118,15 @@ function UploadPage() {
               onClick={handleSubmit}
               className="px-6 py-3 rounded-xl shadow-md hover:opacity-90 transition font-medium"
               style={{ backgroundColor: colors.button, color: colors.text }}
+              disabled={isUploading}
             >
-              Submit
+              {isUploading ? "Uploading..." : "Submit"}
             </button>
           </div>
 
-          {submitted && files.length > 0 && (
+          {uploadMessage && <p className="mt-4 text-sm font-medium">{uploadMessage}</p>}
+
+          {files.length > 0 && (
             <div className="mt-6 flex flex-wrap justify-center gap-6">
               {files.map((file, idx) => (
                 <div

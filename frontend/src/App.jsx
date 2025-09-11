@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app"; // Import initializeApp
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 
 import LoginPage from "./pages/loginPage.jsx"; // Ensure correct extension
 import MainPage from "./pages/mainPage";
@@ -11,7 +12,7 @@ import EditPage from "./pages/editPage";
 import IndexPage from "./pages/indexPage";
 import CommentPage from "./pages/commentPage";
 import { ThemeProvider } from "./colorCustomiser";
-import { doc, getDoc } from "firebase/firestore";
+
 
 // Your Firebase project configuration
 const firebaseConfig = {
@@ -28,7 +29,7 @@ const firebaseConfig = {
 // Initialize Firebase with your config
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app); // Get the auth instance from the initialized app
-
+const db = getFirestore(app); 
 // ProtectedRoute component ensures only logged-in users can access certain pages
 function ProtectedRoute({ isLoggedIn, children }) {
   if (!isLoggedIn) {
@@ -40,6 +41,7 @@ function ProtectedRoute({ isLoggedIn, children }) {
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
 
   // --- Authentication Functions (moved from LoginPage) ---
   const handleLogin = async (email, password) => {
