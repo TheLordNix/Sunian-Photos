@@ -1,99 +1,171 @@
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, Query
-from sqlalchemy.orm import Session
-from app.db.session import SessionLocal
-from app import crud
-from app.storage.local_storage import LocalStorage
+from fastapi import APIRouter, File, UploadFile, Depends, HTTPException, Query
+from typing import List, Optional
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 from app.config import settings
-from app.images.processor import generate_responsive_images
-from uuid import uuid4
+from app.utils.firebase_auth import verify_firebase_token, CurrentUser, db
+from datetime import datetime
+from PIL import Image, ExifTags
 from io import BytesIO
-from typing import List
-import os
 
-router = APIRouter(prefix="/api/images", tags=["images"])
+router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
+# Init Cloudinary
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+    secure=True
+)
+
+def extract_exif_bytes(b: bytes):
     try:
-        yield db
-    finally:
-        db.close()
+        img = Image.open(BytesIO(b))
+        raw = getattr(img, "_getexif", lambda: {})() or {}
+        exif = {}
+        for k, v in raw.items():
+            name = ExifTags.TAGS.get(k, k)
+            exif[name] = v
+        return exif
+    except Exception:
+        return {}
 
-def get_storage():
-    # For now only local backend is registered. The STORAGE_BACKEND var is kept for future.
-    return LocalStorage(settings.STORAGE_LOCAL_PATH)
+@router.post("/upload")
+async def upload_image(file: UploadFile = File(...), title: Optional[str] = None, album_id: Optional[str] = None, privacy: str = "public", user: CurrentUser = Depends(verify_firebase_token)):
+    """
+    Uploads the image to Cloudinary and stores metadata in Firestore.
+    privacy: public / unlisted / private
+    """
+    try:
+        contents = await file.read()
+        # extract exif locally (optional)
+        exif = extract_exif_bytes(contents)
+        # upload to cloudinary under folder per user
+        folder = f"sunian-photos/{user.uid}"
+        # Keep original filename in public_id if possible; Cloudinary auto-generates public_id otherwise
+        result = cloudinary.uploader.upload(BytesIO(contents), folder=folder, resource_type="image", use_filename=True, unique_filename=False)
+        public_id = result.get("public_id")
+        url = result.get("secure_url")
+        width = result.get("width")
+        height = result.get("height")
+        format_ = result.get("format")
+        bytes_len = result.get("bytes")
+        # store metadata in Firestore collection 'images', doc id = public_id
+        data = {
+            "public_id": public_id,
+            "url": url,
+            "filename": file.filename,
+            "mime_type": file.content_type,
+            "width": width,
+            "height": height,
+            "size_bytes": bytes_len,
+            "title": title or "",
+            "caption": "",
+            "alt_text": "",
+            "license": "",
+            "privacy": privacy,
+            "uploaded_by": user.uid,
+            "uploaded_at": datetime.utcnow(),
+            "exif": exif,
+            "album_id": album_id or None,
+            "tags": [],
+        }
+        db.collection("images").document(public_id).set(data)
+        return {"ok": True, "public_id": public_id, "url": url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/", status_code=201)
-async def upload_images(files: List[UploadFile] = File(...), title: str = Query(None), album_id: str = Query(None), db: Session = Depends(get_db)):
-    storage = get_storage()
-    created = []
-    for f in files:
-        data = await f.read()  # bytes
-        # generate responsive sizes & exif
-        outputs, exif, size = generate_responsive_images(data)
-        upload_folder = f"{str(uuid4())}"
-        # Save original (as jpg conversion for consistency)
-        original_key = f"{upload_folder}/{f.filename}"
-        # Save original bytes
-        storage.save(original_key, data, f.content_type or "image/jpeg")
-        # Save generated sizes
-        for name, b in outputs.items():
-            key = f"{upload_folder}/{name}"
-            storage.save(key, b, "image/jpeg")
-        # Create DB record pointing to original key (you could store all keys as JSON if needed)
-        db_img = crud.create_image(db,
-            filename=f.filename,
-            storage_path=original_key,
-            mime_type=f.content_type,
-            width=size[0],
-            height=size[1],
-            size_bytes=len(data),
-            title=title or None,
-            uploaded_by=None,
-            exif=exif,
-            album_id=album_id
-        )
-        created.append({
-            "id": db_img.id,
-            "filename": db_img.filename,
-            "url": storage.url(db_img.storage_path)
-        })
-    return {"uploaded": created}
+@router.get("/")
+def list_images(q: Optional[str] = Query(None), album_id: Optional[str] = Query(None), limit: int = 50, skip: int = 0, uid: Optional[str] = None):
+    """
+    List images with optional search q and album filter.
+    Public behavior: returns images with privacy='public' or matches if uid given for private/unlisted owned images.
+    """
+    try:
+        coll = db.collection("images")
+        # simple approach: fetch limited set then filter in memory (Firestore full-text is limited)
+        docs = coll.order_by("uploaded_at", direction=cloudinary.api.CloudinaryImage) # placeholder won't work; we'll use a safe approach below
+    except Exception:
+        pass
 
-@router.get("/", status_code=200)
-def list_images(q: str = None, skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    items = crud.list_images(db, skip=skip, limit=limit, q=q)
-    # map storage urls for each item
-    storage = get_storage()
-    out = []
-    for it in items:
-        out.append({
-            "id": it.id,
-            "filename": it.filename,
-            "title": it.title,
-            "caption": it.caption,
-            "uploaded_at": it.uploaded_at,
-            "width": it.width,
-            "height": it.height,
-            "exif": it.exif,
-            "url": storage.url(it.storage_path)
-        })
-    return out
+    # Firestore queries: do a basic approach
+    images_ref = db.collection("images")
+    # get snapshot limited to 500 for safety, then filter
+    snapshot = images_ref.limit(500).stream()
+    results = []
+    for doc in snapshot:
+        rec = doc.to_dict()
+        # privacy filter
+        if rec.get("privacy", "public") != "public":
+            # if uid provided and matches uploader, include; otherwise skip
+            if uid is None or rec.get("uploaded_by") != uid:
+                continue
+        if album_id and rec.get("album_id") != album_id:
+            continue
+        if q:
+            qlower = q.lower()
+            matched = False
+            for f in ["title", "caption", "filename"]:
+                v = rec.get(f) or ""
+                if qlower in v.lower():
+                    matched = True; break
+            if not matched:
+                # tags search
+                tags = rec.get("tags", [])
+                if any(qlower in str(t).lower() for t in tags):
+                    matched = True
+            if not matched:
+                continue
+        results.append(rec)
+    # apply skip/limit
+    results = results[skip: skip + limit]
+    return {"count": len(results), "images": results}
 
-@router.get("/{image_id}")
-def get_image(image_id: str, db: Session = Depends(get_db)):
-    img = crud.get_image(db, image_id)
-    if not img:
-        raise HTTPException(status_code=404, detail="Image not found")
-    storage = get_storage()
-    return {
-        "id": img.id,
-        "filename": img.filename,
-        "title": img.title,
-        "caption": img.caption,
-        "uploaded_at": img.uploaded_at,
-        "width": img.width,
-        "height": img.height,
-        "exif": img.exif,
-        "url": storage.url(img.storage_path)
-    }
+@router.get("/{public_id}")
+def get_image(public_id: str, user: CurrentUser = Depends(verify_firebase_token)):
+    doc = db.collection("images").document(public_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Not found")
+    rec = doc.to_dict()
+    # privacy check: if private and not owner and not admin/editor -> deny
+    privacy = rec.get("privacy", "public")
+    if privacy == "private" and user.role not in ("admin", "editor") and user.uid != rec.get("uploaded_by"):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return rec
+
+@router.post("/{public_id}/edit")
+def edit_image(public_id: str, payload: dict, user: CurrentUser = Depends(verify_firebase_token)):
+    doc_ref = db.collection("images").document(public_id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Not found")
+    rec = doc.to_dict()
+    # permission: uploader or editor/admin can edit metadata
+    if user.uid != rec.get("uploaded_by") and user.role not in ("editor", "admin"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # allowed fields to update
+    allowed = ["title", "caption", "alt_text", "license", "privacy", "album_id", "tags"]
+    to_update = {k: payload[k] for k in allowed if k in payload}
+    if to_update:
+        doc_ref.set(to_update, merge=True)
+    return {"ok": True, "updated": to_update}
+
+@router.delete("/{public_id}")
+def delete_image(public_id: str, user: CurrentUser = Depends(verify_firebase_token)):
+    doc_ref = db.collection("images").document(public_id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Not found")
+    rec = doc.to_dict()
+    # permission: uploader or editor/admin
+    if user.uid != rec.get("uploaded_by") and user.role not in ("editor", "admin"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # delete from Cloudinary and Firestore
+    try:
+        cloudinary.uploader.destroy(public_id, invalidate=True, resource_type="image")
+    except Exception as e:
+        # log but continue to remove metadata
+        pass
+    doc_ref.delete()
+    return {"ok": True, "deleted": public_id}
