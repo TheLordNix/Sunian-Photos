@@ -1,10 +1,15 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { initializeApp } from "firebase/app"; // Import initializeApp
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { initializeApp } from "firebase/app";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+} from "firebase/auth";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 
-import LoginPage from "./pages/loginPage.jsx"; // Ensure correct extension
+import LoginPage from "./pages/loginPage.jsx";
 import MainPage from "./pages/mainPage";
 import SetupPage from "./pages/setupPage";
 import UploadPage from "./pages/uploadPage";
@@ -12,7 +17,6 @@ import EditPage from "./pages/editPage";
 import IndexPage from "./pages/indexPage";
 import CommentPage from "./pages/commentPage";
 import { ThemeProvider } from "./colorCustomiser";
-
 
 // Your Firebase project configuration
 const firebaseConfig = {
@@ -22,14 +26,14 @@ const firebaseConfig = {
   storageBucket: "sunianphotos.firebasestorage.app",
   messagingSenderId: "71111238514",
   appId: "1:71111238514:web:566a5c01642fa7241a33eb",
-  measurementId: "G-EEQ1KPN2VK"
+  measurementId: "G-EEQ1KPN2VK",
 };
 
-
-// Initialize Firebase with your config
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app); // Get the auth instance from the initialized app
-const db = getFirestore(app); 
+const auth = getAuth(app);
+const db = getFirestore(app);
+
 // ProtectedRoute component ensures only logged-in users can access certain pages
 function ProtectedRoute({ isLoggedIn, children }) {
   if (!isLoggedIn) {
@@ -43,10 +47,11 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
 
-  // --- Authentication Functions (moved from LoginPage) ---
+  // --- Authentication Functions ---
   const handleLogin = async (email, password) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      return null; // ✅ explicitly return null for success
     } catch (error) {
       return error.message;
     }
@@ -55,33 +60,33 @@ function App() {
   const handleSignUp = async (email, password) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
+      return null; // ✅ success
     } catch (error) {
       return error.message;
     }
   };
 
   useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setUserRole(userData.role); // New state to store the user's role
-        setIsLoggedIn(true);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUserRole(userData.role);
+          setIsLoggedIn(true);
+        } else {
+          setUserRole("visitor");
+          setIsLoggedIn(true);
+        }
       } else {
-        // Handle case where user document doesn't exist (e.g., set a default role)
-        setUserRole("visitor");
-        setIsLoggedIn(true);
+        setUserRole(null);
+        setIsLoggedIn(false);
       }
-    } else {
-      setUserRole(null);
-      setIsLoggedIn(false);
-    }
-    setIsLoading(false);
-  });
-  return () => unsubscribe();
-}, []);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   if (isLoading) {
     return <div>Loading...</div>;
