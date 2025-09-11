@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY="325183714764981"
     CLOUDINARY_API_SECRET="arOep1WhjTDAxkzJmbaJVpJYLZE"
 
-    # CORS - comma separated origins
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000,https://your-app.vercel.app")
-
+    # CORS
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")  # comma-separated
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra="ignore"
 settings = Settings()
