@@ -7,6 +7,9 @@ from typing import Optional
 
 # Initialize Firebase Admin once
 if not firebase_admin._apps:
+    if not settings.FIREBASE_CREDENTIALS:
+        raise RuntimeError("Missing GOOGLE_APPLICATION_CREDENTIALS in .env")
+    
     cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS)
     firebase_admin.initialize_app(cred)
 
@@ -34,5 +37,5 @@ def verify_firebase_token(creds: HTTPAuthorizationCredentials = Security(securit
             role = data.get("role", "visitor")
         # Return a simple user object
         return CurrentUser(uid=uid, email=email, role=role)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")

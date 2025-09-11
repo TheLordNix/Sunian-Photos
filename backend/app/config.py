@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 from pydantic import BaseSettings
 
 class Settings(BaseSettings):
@@ -6,17 +7,19 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Firebase: path to service account JSON
-    FIREBASE_CREDENTIALS: str = os.getenv("FIREBASE_CREDENTIALS", "C:\Users\Anush\OneDrive\Documents\CloneFest PHP\Sunian-Photos\sunianphotos-firebase-adminsdk-fbsvc-7478118d4a.json")
+    FIREBASE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
     # Cloudinary
-    CLOUDINARY_CLOUD_NAME="dqlogchst"
-    CLOUDINARY_API_KEY="325183714764981"
-    CLOUDINARY_API_SECRET="arOep1WhjTDAxkzJmbaJVpJYLZE"
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET")
 
-    # CORS
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")  # comma-separated
+    # CORS (comma-separated origins)
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        extra="ignore"
+        extra = "ignore"
+
 settings = Settings()
