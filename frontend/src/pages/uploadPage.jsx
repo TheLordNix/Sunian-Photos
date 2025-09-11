@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { uploadPhoto } from "../api"; 
+import { uploadPhoto } from "../api";
 import PaintBrushTool from "../components/paintbrushTool";
 import { useTheme } from "../colorCustomiser";
 
@@ -26,7 +26,6 @@ function UploadPage() {
     setUploadMessage("Uploading...");
 
     try {
-      // Cloudinary configuration from .env file
       const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
       const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -36,33 +35,30 @@ function UploadPage() {
 
       for (const file of files) {
         const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', uploadPreset);
+        formData.append("file", file);
+        formData.append("upload_preset", uploadPreset);
 
-        // Upload the image to Cloudinary
         const cloudinaryResponse = await fetch(
           `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
           {
-            method: 'POST',
+            method: "POST",
             body: formData,
           }
         );
 
         if (!cloudinaryResponse.ok) {
-          throw new Error('Cloudinary upload failed.');
+          throw new Error("Cloudinary upload failed.");
         }
 
         const data = await cloudinaryResponse.json();
         const photoUrl = data.secure_url;
 
-        // Create the photo data object for your FastAPI backend
         const photoData = {
           title: file.name,
           url: photoUrl,
-          description: "Uploaded via frontend."
+          description: "Uploaded via frontend.",
         };
 
-        // Send the photo data to your FastAPI backend
         await uploadPhoto(photoData);
       }
 
@@ -77,23 +73,31 @@ function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: colors.bg }}>
-      <PaintBrushTool />
+    <div
+      className="min-h-screen flex flex-col relative"
+      style={{ backgroundColor: colors.global?.bg }}
+    >
+      {/* ✅ PaintBrushTool for UploadPage */}
+      <PaintBrushTool currentPage="upload" imageCount={files.length} />
 
       <div className="flex flex-col items-center justify-center flex-1 px-4">
-        <div className="rounded-2xl shadow-xl p-8 text-center w-full max-w-3xl min-h-[300px] flex flex-col space-y-6"
-          style={{ backgroundColor: colors.box }}
+        <div
+          className="rounded-2xl shadow-xl p-8 text-center w-full max-w-3xl min-h-[300px] flex flex-col space-y-6"
+          style={{ backgroundColor: colors.global?.box }}
         >
           <div className="w-full flex justify-start">
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/main")}
               className="text-gray-600 hover:text-gray-800 transition text-2xl font-bold"
             >
               ←
             </button>
           </div>
 
-          <h1 className="text-4xl font-bold drop-shadow" style={{ color: colors.title }}>
+          <h1
+            className="text-4xl font-bold drop-shadow"
+            style={{ color: colors.global?.title }}
+          >
             Upload Page
           </h1>
 
@@ -109,15 +113,21 @@ function UploadPage() {
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <label
               htmlFor="fileInput"
-              className="px-6 py-3 rounded-xl shadow-md hover:bg-gray-200 transition font-medium cursor-pointer"
-              style={{ backgroundColor: colors.button, color: colors.text }}
+              className="px-6 py-3 rounded-xl shadow-md hover:opacity-80 transition font-medium cursor-pointer"
+              style={{
+                backgroundColor: colors.uploadPage?.selectBtn || "#3B82F6",
+                color: colors.global?.text,
+              }}
             >
               Select Photos
             </label>
             <button
               onClick={handleSubmit}
-              className="px-6 py-3 rounded-xl shadow-md hover:opacity-90 transition font-medium"
-              style={{ backgroundColor: colors.button, color: colors.text }}
+              className="px-6 py-3 rounded-xl shadow-md hover:opacity-80 transition font-medium"
+              style={{
+                backgroundColor: colors.uploadPage?.submitBtn || "#10B981",
+                color: colors.global?.text,
+              }}
               disabled={isUploading}
             >
               {isUploading ? "Uploading..." : "Submit"}
@@ -132,14 +142,20 @@ function UploadPage() {
                 <div
                   key={idx}
                   className="p-3 rounded-xl shadow-md flex flex-col items-center"
-                  style={{ backgroundColor: colors.imageBox }}
+                  style={{
+                    backgroundColor:
+                      colors.uploadPage?.imageBoxes?.[idx] || "#ffffff",
+                  }}
                 >
                   <img
                     src={URL.createObjectURL(file)}
                     alt={file.name}
                     className="max-w-[300px] max-h-[300px] rounded-lg object-contain"
                   />
-                  <p className="text-sm mt-2 truncate max-w-[280px]" style={{ color: colors.text }}>
+                  <p
+                    className="text-sm mt-2 truncate max-w-[280px]"
+                    style={{ color: colors.global?.text }}
+                  >
                     {file.name}
                   </p>
                 </div>
