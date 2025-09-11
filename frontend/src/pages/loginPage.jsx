@@ -1,37 +1,17 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
-const loginPageStyles = {
-  container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100vh',
-    backgroundColor: '#f0f2f5',
-    fontFamily: 'Arial, sans-serif',
-  },
-  formBox: {
-    backgroundColor: '#fff',
-    padding: '40px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    width: '100%',
-    maxWidth: '400px',
-    textAlign: 'center',
-  },
-  // Add other style objects here
-};
-
-const LoginPage = ({ handleLogin, handleSignUp }) => {
+function LoginPage({ handleLogin, handleSignUp }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const onLoginSubmit = async (e) => {
-    e.preventDefault();
+  const onLoginClick = async () => {
     setError("");
     const loginError = await handleLogin(email, password);
     if (loginError) {
       setError(loginError);
+    } else {
+      console.log("Login successful!");
     }
   };
 
@@ -40,30 +20,64 @@ const LoginPage = ({ handleLogin, handleSignUp }) => {
     const signUpError = await handleSignUp(email, password);
     if (signUpError) {
       setError(signUpError);
+    } else {
+      console.log("Signup successful!");
     }
   };
 
   return (
-    <div style={loginPageStyles.container}>
-      <div style={loginPageStyles.formBox}>
-        <h2>Login</h2>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <form onSubmit={onLoginSubmit}>
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Email</label>
+    <div className="min-h-screen flex items-center justify-center bg-cyan-500">
+      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
+        <h1 className="text-3xl font-bold mb-6">Login</h1>
+
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+
+        <div className="space-y-4">
+          {/* Email */}
+          <div className="text-left">
+            <label className="block text-gray-700 mb-1">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              style={{ width: '100%', padding: '10px', boxSizing: 'border-box' }}
+              className="border rounded px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
               required
             />
           </div>
-          {/* Add other styled elements */}
-        </form>
+
+          {/* Password */}
+          <div className="text-left">
+            <label className="block text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="border rounded px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+              required
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className="flex flex-col gap-3 mt-6">
+            <button
+              type="button"
+              onClick={onLoginClick}
+              className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={onSignUpClick}
+              className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition"
+            >
+              Sign Up
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
-};
+}
 
 export default LoginPage;
