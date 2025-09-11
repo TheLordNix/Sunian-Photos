@@ -1,12 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.utils.firebase_auth import verify_firebase_token, CurrentUser, db
 from app.utils.firebase_auth import security
+from app.schemas import UserOut
 
 router = APIRouter()
 
-@router.get("/me")
+@router.get("/me", response_model=UserOut)
 def me(user: CurrentUser = Depends(verify_firebase_token)):
-    return {"uid": user.uid, "email": user.email, "role": user.role}
+    return UserOut(
+        id=user.uid,
+        username="unknown",  # ✅ placeholder (replace if you store usernames in Firestore)
+        email=user.email,
+        role=user.role,
+    )
 
 @router.post("/{target_uid}/role")
 def set_role(target_uid: str, role: str, user: CurrentUser = Depends(verify_firebase_token)):

@@ -5,6 +5,8 @@ import cloudinary.uploader
 import cloudinary.api
 from app.config import settings
 from app.utils.firebase_auth import verify_firebase_token, CurrentUser, db
+from app.schemas import ImageEdit   # ✅ add this
+from google.cloud import firestore  # ✅ fix for query ordering
 from datetime import datetime
 from PIL import Image, ExifTags
 from io import BytesIO
@@ -85,7 +87,7 @@ def list_images(q: Optional[str] = Query(None), album_id: Optional[str] = Query(
     try:
         coll = db.collection("images")
         # simple approach: fetch limited set then filter in memory (Firestore full-text is limited)
-        docs = coll.order_by("uploaded_at", direction=cloudinary.api.CloudinaryImage) # placeholder won't work; we'll use a safe approach below
+        docs = coll.order_by("uploaded_at", direction=firestore.Query.DESCENDING)
     except Exception:
         pass
 
@@ -135,18 +137,19 @@ def get_image(public_id: str, user: CurrentUser = Depends(verify_firebase_token)
     return rec
 
 @router.post("/{public_id}/edit")
-def edit_image(public_id: str, payload: dict, user: CurrentUser = Depends(verify_firebase_token)):
+def edit_image(public_id: str, payload: ImageEdit, user: CurrentUser = Depends(verify_firebase_token)):
     doc_ref = db.collection("images").document(public_id)
     doc = doc_ref.get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Not found")
     rec = doc.to_dict()
-    # permission: uploader or editor/admin can edit metadata
     if user.uid != rec.get("uploaded_by") and user.role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail="Permission denied")
-    # allowed fields to update
-    allowed = ["title", "caption", "alt_text", "license", "privacy", "album_id", "tags"]
-    to_update = {k: payload[k] for k in allowed if k in payload}
+
+    updates = payload.model_dump(exclude_unset=True)  # ✅ v2-safe
+    allowed = {"title", "caption", "alt_text", "license", "privacy", "album_id", "tags"}
+    to_update = {k: v for k, v in updates.items() if k in allowed}
+
     if to_update:
         doc_ref.set(to_update, merge=True)
     return {"ok": True, "updated": to_update}

@@ -1,19 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from app.utils.firebase_auth import verify_firebase_token, CurrentUser, db
+from app.schemas import AlbumCreate
 
 router = APIRouter()
 
 @router.post("/")
-def create_album(title: str, description: str = "", user: CurrentUser = Depends(verify_firebase_token)):
+def create_album(payload: AlbumCreate, user: CurrentUser = Depends(verify_firebase_token)):
     doc_ref = db.collection("albums").document()
     data = {
         "id": doc_ref.id,
-        "title": title,
-        "description": description,
+        "title": payload.title,
+        "description": payload.description or "",
         "created_by": user.uid,
         "created_at": datetime.utcnow(),
-        "image_ids": []
+        "image_ids": [],
     }
     doc_ref.set(data)
     return data

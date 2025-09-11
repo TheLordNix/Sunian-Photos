@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from app.utils.firebase_auth import verify_firebase_token, CurrentUser, db
+from app.schemas import CommentCreate
 
 router = APIRouter()
 
 @router.post("/{public_id}")
-def add_comment(public_id: str, content: str, user: CurrentUser = Depends(verify_firebase_token)):
+def add_comment(public_id: str, payload: CommentCreate, user: CurrentUser = Depends(verify_firebase_token)):
     # ensure image exists
     img = db.collection("images").document(public_id).get()
     if not img.exists:
@@ -16,7 +17,7 @@ def add_comment(public_id: str, content: str, user: CurrentUser = Depends(verify
         "id": doc_ref.id,
         "image_id": public_id,
         "author_uid": user.uid,
-        "content": content,
+        "content": payload.content,
         "created_at": datetime.utcnow()
     }
     doc_ref.set(data)

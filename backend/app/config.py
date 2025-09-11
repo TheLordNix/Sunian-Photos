@@ -1,25 +1,27 @@
-import os
-from dotenv import load_dotenv
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
+from pydantic import Field
+from typing import Optional
 
 class Settings(BaseSettings):
     APP_NAME: str = "Sunian Photos API"
     DEBUG: bool = True
 
-    # Firebase: path to service account JSON
-    FIREBASE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    # Firebase (map env var name → field name)
+    FIREBASE_CREDENTIALS: Optional[str] = Field(
+        default=None, alias="GOOGLE_APPLICATION_CREDENTIALS"
+    )
 
     # Cloudinary
-    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME")
-    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY")
-    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET")
+    CLOUDINARY_CLOUD_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
 
-    # CORS (comma-separated origins)
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:3000"
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        extra = "ignore"
+        populate_by_name = True   # ✅ allow alias mapping
 
 settings = Settings()
