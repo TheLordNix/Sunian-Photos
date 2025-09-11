@@ -1,39 +1,69 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
 
-function LoginPage({ setIsLoggedIn }) {
-  const [input, setInput] = useState("");
-  const navigate = useNavigate();
+const loginPageStyles = {
+  container: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    backgroundColor: '#f0f2f5',
+    fontFamily: 'Arial, sans-serif',
+  },
+  formBox: {
+    backgroundColor: '#fff',
+    padding: '40px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    width: '100%',
+    maxWidth: '400px',
+    textAlign: 'center',
+  },
+  // Add other style objects here
+};
 
-  const handleLogin = () => {
-    if (input.trim() !== "") {
-      setIsLoggedIn(true);
-      localStorage.setItem("isLoggedIn", "true"); // persist login
-      navigate("/home"); // redirect to home
+const LoginPage = ({ handleLogin, handleSignUp }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const onLoginSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const loginError = await handleLogin(email, password);
+    if (loginError) {
+      setError(loginError);
+    }
+  };
+
+  const onSignUpClick = async () => {
+    setError("");
+    const signUpError = await handleSignUp(email, password);
+    if (signUpError) {
+      setError(signUpError);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[rgba(121,255,255,1)]">
-      <div className="bg-white p-8 rounded-xl shadow-lg text-center">
-        <h1 className="text-3xl font-bold mb-4">Login</h1>
-        <input
-          type="text"
-          placeholder="Enter anything..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-          className="border rounded px-4 py-2 w-full mb-4"
-        />
-        <button
-          onClick={handleLogin}
-          className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600"
-        >
-          Login
-        </button>
+    <div style={loginPageStyles.container}>
+      <div style={loginPageStyles.formBox}>
+        <h2>Login</h2>
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <form onSubmit={onLoginSubmit}>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ width: '100%', padding: '10px', boxSizing: 'border-box' }}
+              required
+            />
+          </div>
+          {/* Add other styled elements */}
+        </form>
       </div>
     </div>
   );
-}
+};
 
 export default LoginPage;

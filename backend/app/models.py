@@ -45,3 +45,6 @@ class Image(Base):
     generation_meta = Column(JSON, nullable=True)
     album_id = Column(String(36), ForeignKey("albums.id"), nullable=True)
     album = relationship("Album", back_populates="images")
+class UserLogin(Base):
+    username: str
+    password: str
