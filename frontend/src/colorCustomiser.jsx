@@ -8,12 +8,25 @@ export const ThemeProvider = ({ children }) => {
     return saved
       ? JSON.parse(saved)
       : {
-          bg: "rgba(121,255,255,1)",
-          box: "rgba(240,192,133,1)",
-          title: "rgba(255,102,0,1)",
-          text: "#ffffff",
-          button: "#3B82F6",
-          imageBox: "#ffffff", // default for image boxes
+          global: {
+            bg: "rgba(121,255,255,1)",
+            box: "rgba(240,192,133,1)",
+            title: "rgba(255,102,0,1)",
+            text: "#ffffff",
+          },
+          mainPage: {
+            galleryBtn: "#3B82F6",
+            uploadBtn: "#3B82F6",
+            logoutBtn: "#3B82F6",
+          },
+          uploadPage: {
+            selectBtn: "#3B82F6",
+            submitBtn: "#3B82F6",
+            imageBoxes: {}, // individual preview boxes
+          },
+          galleryPage: {
+            imageBoxes: {}, // individual gallery boxes
+          },
         };
   });
 
