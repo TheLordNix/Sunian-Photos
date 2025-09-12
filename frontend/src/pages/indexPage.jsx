@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PaintBrushTool from "../components/paintbrushTool";
 import { useTheme } from "../colorCustomiser";
 
@@ -7,15 +7,59 @@ function IndexPage() {
   const navigate = useNavigate();
   const { colors } = useTheme();
 
-  const [images, setImages] = useState([
-    { src: "https://via.placeholder.com/300x200", size: 200, thumb: 100 },
-    { src: "https://via.placeholder.com/250x250", size: 200, thumb: 100 },
-    { src: "https://via.placeholder.com/280x180", size: 200, thumb: 100 },
-  ]);
-
+  const [images, setImages] = useState([]);
   const [comments, setComments] = useState({});
-  const [originalImages] = useState(images);
+  const [originalImages, setOriginalImages] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+
+  // 🔍 Lightbox modal state
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  // ✅ Fetch images OR fallback to placeholders
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        const res = await fetch("http://localhost:8000/api/images", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to load images");
+        const data = await res.json();
+
+        const formatted = data.map((img) => ({
+          src: img.storage_path,
+          size: 200,
+          thumb: 100,
+        }));
+
+        if (formatted.length > 0) {
+          setImages(formatted);
+          setOriginalImages(formatted);
+        } else {
+          // fallback placeholders
+          const placeholders = [
+            { src: "https://via.placeholder.com/300x200", size: 200, thumb: 100 },
+            { src: "https://via.placeholder.com/250x250", size: 200, thumb: 100 },
+            { src: "https://via.placeholder.com/280x180", size: 200, thumb: 100 },
+          ];
+          setImages(placeholders);
+          setOriginalImages(placeholders);
+        }
+      } catch (err) {
+        console.error("Error loading images:", err);
+        // fallback placeholders if API fails
+        const placeholders = [
+          { src: "https://via.placeholder.com/300x200", size: 200, thumb: 100 },
+          { src: "https://via.placeholder.com/250x250", size: 200, thumb: 100 },
+          { src: "https://via.placeholder.com/280x180", size: 200, thumb: 100 },
+        ];
+        setImages(placeholders);
+        setOriginalImages(placeholders);
+      }
+    };
+
+    fetchImages();
+  }, []);
 
   const moveImage = (idx, direction) => {
     const newImages = [...images];
@@ -51,16 +95,23 @@ function IndexPage() {
   const handleCommentSubmit = (idx) => {
     if (comments[idx]) {
       alert(`Comment on Image ${idx + 1}: ${comments[idx]}`);
-      setComments((prev) => ({ ...prev, [idx]: "" })); // clear textarea
+      setComments((prev) => ({ ...prev, [idx]: "" }));
     }
   };
+
+  // 🔍 Lightbox controls
+  const openLightbox = (idx) => setLightboxIndex(idx);
+  const closeLightbox = () => setLightboxIndex(null);
+  const showPrev = () =>
+    setLightboxIndex((prev) => (prev > 0 ? prev - 1 : prev));
+  const showNext = () =>
+    setLightboxIndex((prev) => (prev < images.length - 1 ? prev + 1 : prev));
 
   return (
     <div
       className="min-h-screen flex flex-col relative"
       style={{ backgroundColor: colors.global?.bg }}
     >
-      {/* ✅ PaintBrushTool configured for Gallery */}
       <PaintBrushTool currentPage="gallery" imageCount={images.length} />
 
       <div className="flex flex-col items-center justify-center flex-1 px-4">
@@ -111,7 +162,8 @@ function IndexPage() {
                     src={img.src}
                     alt={`Image ${idx + 1}`}
                     style={{ width: img.size, height: "auto" }}
-                    className="rounded-lg object-contain"
+                    className="rounded-lg object-contain cursor-pointer"
+                    onClick={() => openLightbox(idx)}
                   />
 
                   {/* Comment Section */}
@@ -196,7 +248,7 @@ function IndexPage() {
             </div>
           ) : (
             <p className="text-gray-600 text-center">
-              No images prepared yet. Go to Setup Page to prepare index.
+              No images uploaded yet. Go to Upload Page to add some.
             </p>
           )}
 
@@ -226,6 +278,40 @@ function IndexPage() {
           )}
         </div>
       </div>
+
+      {/* 🔍 Lightbox Modal with blurred background */}
+      {lightboxIndex !== null && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          {/* blurred background of gallery */}
+          <div className="absolute inset-0 backdrop-blur-lg bg-black/40"></div>
+
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-6 text-white text-4xl font-bold z-50"
+          >
+            ✕
+          </button>
+          <button
+            onClick={showPrev}
+            disabled={lightboxIndex === 0}
+            className="absolute left-6 text-white text-5xl px-3 disabled:opacity-30 z-50"
+          >
+            ‹
+          </button>
+          <img
+            src={images[lightboxIndex].src}
+            alt={`Image ${lightboxIndex + 1}`}
+            className="max-h-[90vh] max-w-[90vw] rounded-lg relative z-50"
+          />
+          <button
+            onClick={showNext}
+            disabled={lightboxIndex === images.length - 1}
+            className="absolute right-6 text-white text-5xl px-3 disabled:opacity-30 z-50"
+          >
+            ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }
