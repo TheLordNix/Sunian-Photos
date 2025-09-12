@@ -16,37 +16,36 @@ function IndexPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   // ✅ Fetch images only from API (no placeholders)
- useEffect(() => {
-  const fetchImages = async () => {
-    try {
-      const token = localStorage.getItem("authToken");
-      const res = await fetch("http://localhost:8000/api/images", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load images");
+ 
 
-      const responseData = await res.json();
-      
-      // Access the 'images' array from the backend response
-      const imagesArray = responseData.images;
+useEffect(() => {
+    const fetchImages = async () => {
+        try {
+            const token = localStorage.getItem("authToken");
+            const res = await fetch("http://localhost:8000/api/images", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error("Failed to load images");
 
-      // Map the array to format the data
-      const formatted = imagesArray.map(img => ({
-  src: img.url,
-  width: img.width || 200,
-  height: img.height || 200,
-}));
-setPhotos(formatted);
+            const responseData = await res.json();
+            
+            const imagesArray = responseData.images;
+            
+            const formatted = imagesArray.map(img => ({
+                src: img.url,
+                width: img.width || 200,
+                height: img.height || 200,
+            }));
 
-      // Set the photos in your component's state
-      // setPhotos(formatted);
+            // ✅ This is the corrected line:
+            setImages(formatted);
 
-    } catch (error) {
-      console.error("Error fetching images:", error);
-    }
-  };
+        } catch (error) {
+            console.error("Error fetching images:", error);
+        }
+    };
 
-  fetchImages();
+    fetchImages();
 }, []);
   const moveImage = (idx, direction) => {
     const newImages = [...images];
