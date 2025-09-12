@@ -15,7 +15,7 @@ function IndexPage() {
   // 🔍 Lightbox modal state
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
-  // ✅ Fetch images OR fallback to placeholders
+  // ✅ Fetch images only from API (no placeholders)
   useEffect(() => {
     const fetchImages = async () => {
       try {
@@ -32,29 +32,12 @@ function IndexPage() {
           thumb: 100,
         }));
 
-        if (formatted.length > 0) {
-          setImages(formatted);
-          setOriginalImages(formatted);
-        } else {
-          // fallback placeholders
-          const placeholders = [
-            { src: "https://via.placeholder.com/300x200", size: 200, thumb: 100 },
-            { src: "https://via.placeholder.com/250x250", size: 200, thumb: 100 },
-            { src: "https://via.placeholder.com/280x180", size: 200, thumb: 100 },
-          ];
-          setImages(placeholders);
-          setOriginalImages(placeholders);
-        }
+        setImages(formatted);
+        setOriginalImages(formatted);
       } catch (err) {
         console.error("Error loading images:", err);
-        // fallback placeholders if API fails
-        const placeholders = [
-          { src: "https://via.placeholder.com/300x200", size: 200, thumb: 100 },
-          { src: "https://via.placeholder.com/250x250", size: 200, thumb: 100 },
-          { src: "https://via.placeholder.com/280x180", size: 200, thumb: 100 },
-        ];
-        setImages(placeholders);
-        setOriginalImages(placeholders);
+        setImages([]);          // 👈 no placeholders
+        setOriginalImages([]);  // 👈 keep clean
       }
     };
 
