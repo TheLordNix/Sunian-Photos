@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:8000,http://localhost:8000/photos,http://localhost:5173"
 
     class Config:
         env_file = ".env"

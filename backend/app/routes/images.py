@@ -7,7 +7,7 @@ from app.config import settings
 from app.utils.firebase_auth import verify_firebase_token, CurrentUser, db
 from app.schemas import ImageEdit   # ✅ add this
 from google.cloud import firestore  # ✅ fix for query ordering
-from datetime import datetime
+from datetime import datetime, timezone
 from PIL import Image, ExifTags
 from io import BytesIO
 
@@ -33,12 +33,13 @@ def extract_exif_bytes(b: bytes):
     except Exception:
         return {}
 
-@router.post("/upload")
+@router.post("/photos")
 async def upload_image(file: UploadFile = File(...), title: Optional[str] = None, album_id: Optional[str] = None, privacy: str = "public", user: CurrentUser = Depends(verify_firebase_token)):
     """
     Uploads the image to Cloudinary and stores metadata in Firestore.
     privacy: public / unlisted / private
     """
+    
     try:
         contents = await file.read()
         # extract exif locally (optional)
@@ -68,8 +69,8 @@ async def upload_image(file: UploadFile = File(...), title: Optional[str] = None
             "license": "",
             "privacy": privacy,
             "uploaded_by": user.uid,
-            "uploaded_at": datetime.utcnow(),
-            "exif": exif,
+            "uploaded_at": datetime.now(timezone.utc),
+            #"exif": exif,
             "album_id": album_id or None,
             "tags": [],
         }

@@ -17,6 +17,7 @@ function UploadPage() {
   };
 
   const handleSubmit = async () => {
+
     if (files.length === 0) {
       setUploadMessage("Please select at least one file to upload.");
       return;
@@ -24,8 +25,18 @@ function UploadPage() {
 
     setIsUploading(true);
     setUploadMessage("Uploading...");
+     try {
+    for (const file of files) {
+      await uploadPhoto(file);
+    }
+    setUploadMessage("All photos uploaded successfully!");
+  } catch (error) {
+    setUploadMessage(`Upload failed: ${error.message}`);
+  } finally {
+    setIsUploading(false);
+  }
 
-    try {
+    /*try {
       const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
       const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -53,13 +64,12 @@ function UploadPage() {
         const data = await cloudinaryResponse.json();
         const photoUrl = data.secure_url;
 
-        const photoData = {
-          title: file.name,
-          url: photoUrl,
-          description: "Uploaded via frontend.",
-        };
+        
+        formData.append("title", file.name);
+        formData.append("url", photoUrl);
+        formData.append("description", "Uploaded via frontend.");
 
-        await uploadPhoto(photoData);
+        await uploadPhoto(formData);
       }
 
       setUploadMessage("All photos uploaded successfully!");
@@ -70,8 +80,8 @@ function UploadPage() {
     } finally {
       setIsUploading(false);
     }
-  };
-
+  };*/
+  }
   return (
     <div
       className="min-h-screen flex flex-col relative"

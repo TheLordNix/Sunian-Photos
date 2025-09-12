@@ -16,34 +16,38 @@ function IndexPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   // ✅ Fetch images only from API (no placeholders)
-  useEffect(() => {
-    const fetchImages = async () => {
-      try {
-        const token = localStorage.getItem("authToken");
-        const res = await fetch("http://localhost:8000/api/images", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("Failed to load images");
-        const data = await res.json();
+ useEffect(() => {
+  const fetchImages = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch("http://localhost:8000/api/images", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load images");
 
-        const formatted = data.map((img) => ({
-          src: img.storage_path,
-          size: 200,
-          thumb: 100,
-        }));
+      const responseData = await res.json();
+      
+      // Access the 'images' array from the backend response
+      const imagesArray = responseData.images;
 
-        setImages(formatted);
-        setOriginalImages(formatted);
-      } catch (err) {
-        console.error("Error loading images:", err);
-        setImages([]);          // 👈 no placeholders
-        setOriginalImages([]);  // 👈 keep clean
-      }
-    };
+      // Map the array to format the data
+      const formatted = imagesArray.map((img) => ({
+        src: img.url, // Use the 'url' field from your Firestore document
+        width: img.width || 200, // Use actual width from metadata or a default
+        height: img.height || 200, // Use actual height from metadata or a default
+        // The rest of your photo gallery properties
+      }));
 
-    fetchImages();
-  }, []);
+      // Set the photos in your component's state
+      // setPhotos(formatted);
 
+    } catch (error) {
+      console.error("Error fetching images:", error);
+    }
+  };
+
+  fetchImages();
+}, []);
   const moveImage = (idx, direction) => {
     const newImages = [...images];
     const swapIdx = idx + direction;
