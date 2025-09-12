@@ -8,45 +8,42 @@ function IndexPage() {
   const { colors } = useTheme();
 
   const [images, setImages] = useState([]);
-  const [comments, setComments] = useState({});
   const [originalImages, setOriginalImages] = useState([]);
+  const [comments, setComments] = useState({});
   const [isEditing, setIsEditing] = useState(false);
-
-  // 🔍 Lightbox modal state
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
-  // ✅ Fetch images only from API (no placeholders)
- 
-
-useEffect(() => {
+  // ✅ Fetch images from API
+  useEffect(() => {
     const fetchImages = async () => {
-        try {
-            const token = localStorage.getItem("authToken");
-            const res = await fetch("http://localhost:8000/api/images", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error("Failed to load images");
+      try {
+        const token = localStorage.getItem("authToken");
+        const res = await fetch("http://localhost:8000/api/images", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to load images");
 
-            const responseData = await res.json();
-            
-            const imagesArray = responseData.images;
-            
-            const formatted = imagesArray.map(img => ({
-                src: img.url,
-                width: img.width || 200,
-                height: img.height || 200,
-            }));
+        const responseData = await res.json();
+        const imagesArray = responseData.images;
 
-            // ✅ This is the corrected line:
-            setImages(formatted);
+        const formatted = imagesArray.map((img) => ({
+          src: img.url,
+          width: img.width || 200,
+          height: img.height || 200,
+          size: img.width || 200,
+          thumb: 100,
+        }));
 
-        } catch (error) {
-            console.error("Error fetching images:", error);
-        }
+        setImages(formatted);
+        setOriginalImages(formatted);
+      } catch (error) {
+        console.error("Error fetching images:", error);
+      }
     };
 
     fetchImages();
-}, []);
+  }, []);
+
   const moveImage = (idx, direction) => {
     const newImages = [...images];
     const swapIdx = idx + direction;
@@ -85,7 +82,6 @@ useEffect(() => {
     }
   };
 
-  // 🔍 Lightbox controls
   const openLightbox = (idx) => setLightboxIndex(idx);
   const closeLightbox = () => setLightboxIndex(null);
   const showPrev = () =>
@@ -152,7 +148,6 @@ useEffect(() => {
                     onClick={() => openLightbox(idx)}
                   />
 
-                  {/* Comment Section */}
                   <textarea
                     value={comments[idx] || ""}
                     onChange={(e) => handleCommentChange(idx, e.target.value)}
@@ -174,7 +169,6 @@ useEffect(() => {
                     Submit
                   </button>
 
-                  {/* Edit Controls */}
                   {isEditing && (
                     <>
                       <div className="mt-4 w-full">
@@ -265,10 +259,8 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* 🔍 Lightbox Modal with blurred background */}
       {lightboxIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
-          {/* blurred background of gallery */}
           <div className="absolute inset-0 backdrop-blur-lg bg-black/40"></div>
 
           <button
@@ -285,7 +277,7 @@ useEffect(() => {
             ‹
           </button>
           <img
-            src={images[lightboxIndex].src}
+            src={images[lightboxIndex]?.src}
             alt={`Image ${lightboxIndex + 1}`}
             className="max-h-[90vh] max-w-[90vw] rounded-lg relative z-50"
           />
