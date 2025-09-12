@@ -34,26 +34,43 @@ def extract_exif_bytes(b: bytes):
         return {}
 
 @router.post("/photos")
-async def upload_image(file: UploadFile = File(...), title: Optional[str] = None, album_id: Optional[str] = None, privacy: str = "public", user: CurrentUser = Depends(verify_firebase_token)):
+async def upload_image(
+    file: UploadFile = File(...), 
+    title: Optional[str] = None, 
+    album_id: Optional[str] = None, 
+    privacy: str = "public", 
+    user: CurrentUser = Depends(verify_firebase_token)
+):
     """
     Uploads the image to Cloudinary and stores metadata in Firestore.
-    privacy: public / unlisted / private
     """
+    # Initialize public_id outside the try block to ensure it's always defined
+    public_id = None
     
     try:
         contents = await file.read()
+        
         # extract exif locally (optional)
         exif = extract_exif_bytes(contents)
+        
         # upload to cloudinary under folder per user
         folder = f"sunian-photos/{user.uid}"
-        # Keep original filename in public_id if possible; Cloudinary auto-generates public_id otherwise
-        result = cloudinary.uploader.upload(BytesIO(contents), folder=folder, resource_type="image", use_filename=True, unique_filename=False)
+        
+        result = cloudinary.uploader.upload(
+            BytesIO(contents),
+            folder=folder,
+            resource_type="image",
+            use_filename=True,
+            unique_filename=True
+        )
+        
         public_id = result.get("public_id")
         url = result.get("secure_url")
         width = result.get("width")
         height = result.get("height")
         format_ = result.get("format")
         bytes_len = result.get("bytes")
+        
         # store metadata in Firestore collection 'images', doc id = public_id
         data = {
             "public_id": public_id,
@@ -69,44 +86,50 @@ async def upload_image(file: UploadFile = File(...), title: Optional[str] = None
             "license": "",
             "privacy": privacy,
             "uploaded_by": user.uid,
-            "uploaded_at": datetime.now(timezone.utc),
-            #"exif": exif,
+            "uploaded_at": datetime.utcnow(),
+            "exif": exif,
             "album_id": album_id or None,
             "tags": [],
         }
+        
         db.collection("images").document(public_id).set(data)
         return {"ok": True, "public_id": public_id, "url": url}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Now, `public_id` is defined and can be returned in the error message
+        raise HTTPException(
+            status_code=500, 
+            detail=f"An error occurred during upload. Public ID: {public_id}. Error: {e}"
+        )
 
 @router.get("/")
 def list_images(q: Optional[str] = Query(None), album_id: Optional[str] = Query(None), limit: int = 50, skip: int = 0, uid: Optional[str] = None):
     """
     List images with optional search q and album filter.
-    Public behavior: returns images with privacy='public' or matches if uid given for private/unlisted owned images.
     """
-    try:
-        coll = db.collection("images")
-        # simple approach: fetch limited set then filter in memory (Firestore full-text is limited)
-        docs = coll.order_by("uploaded_at", direction=firestore.Query.DESCENDING)
-    except Exception:
-        pass
-
-    # Firestore queries: do a basic approach
+    print("Fetching images from Firestore...")
     images_ref = db.collection("images")
-    # get snapshot limited to 500 for safety, then filter
-    snapshot = images_ref.limit(500).stream()
+    snapshot = images_ref.stream()
+
     results = []
     for doc in snapshot:
         rec = doc.to_dict()
+        results.append(rec)
+    
+    print(f"Fetched {len(results)} documents before filtering.")
+    
+    final_results = []
+    for rec in results:
         # privacy filter
         if rec.get("privacy", "public") != "public":
-            # if uid provided and matches uploader, include; otherwise skip
             if uid is None or rec.get("uploaded_by") != uid:
+                print(f"Skipping private/unlisted image: {rec.get('public_id')}")
                 continue
         if album_id and rec.get("album_id") != album_id:
+            print(f"Skipping image from wrong album: {rec.get('public_id')}")
             continue
         if q:
+            # ... your search logic ...
             qlower = q.lower()
             matched = False
             for f in ["title", "caption", "filename"]:
@@ -114,16 +137,22 @@ def list_images(q: Optional[str] = Query(None), album_id: Optional[str] = Query(
                 if qlower in v.lower():
                     matched = True; break
             if not matched:
-                # tags search
                 tags = rec.get("tags", [])
                 if any(qlower in str(t).lower() for t in tags):
                     matched = True
             if not matched:
+                print(f"Skipping non-matching image: {rec.get('public_id')}")
                 continue
-        results.append(rec)
+        
+        final_results.append(rec)
+
     # apply skip/limit
-    results = results[skip: skip + limit]
-    return {"count": len(results), "images": results}
+    final_results = final_results[skip: skip + limit]
+    
+    print(f"Returning {len(final_results)} images after filtering.")
+    
+    return {"count": len(final_results), "images": final_results}
+
 
 @router.get("/{public_id}")
 def get_image(public_id: str, user: CurrentUser = Depends(verify_firebase_token)):

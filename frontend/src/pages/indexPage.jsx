@@ -31,12 +31,12 @@ function IndexPage() {
       const imagesArray = responseData.images;
 
       // Map the array to format the data
-      const formatted = imagesArray.map((img) => ({
-        src: img.url, // Use the 'url' field from your Firestore document
-        width: img.width || 200, // Use actual width from metadata or a default
-        height: img.height || 200, // Use actual height from metadata or a default
-        // The rest of your photo gallery properties
-      }));
+      const formatted = imagesArray.map(img => ({
+  src: img.url,
+  width: img.width || 200,
+  height: img.height || 200,
+}));
+setPhotos(formatted);
 
       // Set the photos in your component's state
       // setPhotos(formatted);
