@@ -9,12 +9,21 @@ function IndexPage() {
 
   const [images, setImages] = useState([]);
   const [originalImages, setOriginalImages] = useState([]);
-  const [comments, setComments] = useState({});
   const [likes, setLikes] = useState({});
+  const [commentsCount, setCommentsCount] = useState({});
   const [isEditing, setIsEditing] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
-  // ✅ Fetch images from API
+  // ✅ Comments modal
+  const [commentModal, setCommentModal] = useState({
+    open: false,
+    imageId: null,
+    comments: [],
+  });
+
+  const userEmail = localStorage.getItem("userEmail") || "guest@example.com";
+
+  // ✅ Fetch images
   useEffect(() => {
     const fetchImages = async () => {
       try {
@@ -37,21 +46,29 @@ function IndexPage() {
         setImages(formatted);
         setOriginalImages(formatted);
 
-        // init likes
+        // init likes + comments
         const initialLikes = {};
-        formatted.forEach((img) => {
-          initialLikes[img.id] = 0;
+        const initialComments = {};
+        imagesArray.forEach((img) => {
+          const userLiked =
+            img.likes && img.likes.includes(userEmail) ? true : false;
+          initialLikes[img.id] = {
+            count: img.likes ? img.likes.length : 0,
+            liked: userLiked,
+          };
+          initialComments[img.id] = img.comments_count || 0;
         });
         setLikes(initialLikes);
+        setCommentsCount(initialComments);
       } catch (error) {
         console.error("Error fetching images:", error);
       }
     };
 
     fetchImages();
-  }, []);
+  }, [userEmail]);
 
-  // ✅ Reorder with backend update
+  // ✅ Reorder
   const moveImage = async (idx, direction) => {
     const newImages = [...images];
     const swapIdx = idx + direction;
@@ -82,7 +99,7 @@ function IndexPage() {
     setImages(newImages);
   };
 
-  // ✅ Delete with backend update
+  // ✅ Delete
   const deleteImage = async (idx) => {
     const img = images[idx];
     try {
@@ -104,20 +121,69 @@ function IndexPage() {
     alert("Changes saved!");
   };
 
-  const handleCommentChange = (idx, value) =>
-    setComments((prev) => ({ ...prev, [idx]: value }));
+  // ✅ Likes toggle
+  const handleLike = async (id) => {
+    try {
+      const token = localStorage.getItem("authToken");
 
-  const handleCommentSubmit = (idx) => {
-    if (comments[idx]) {
-      alert(`Comment on Image ${idx + 1}: ${comments[idx]}`);
-      setComments((prev) => ({ ...prev, [idx]: "" }));
+      const res = await fetch(`http://localhost:8000/api/images/${id}/like`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_email: userEmail }), // use user_email
+      });
+
+      const data = await res.json();
+      setLikes((prev) => ({
+        ...prev,
+        [id]: { count: data.total_likes, liked: data.liked },
+      }));
+    } catch (err) {
+      console.error("Like failed:", err);
     }
   };
 
-  const handleLike = (id) => {
-    setLikes((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  // ✅ Comments modal open
+  const openComments = async (id) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/images/${id}/comments`);
+      const data = await res.json();
+      setCommentModal({ open: true, imageId: id, comments: data });
+    } catch (err) {
+      console.error("Failed to fetch comments:", err);
+    }
   };
 
+  const closeComments = () =>
+    setCommentModal({ open: false, imageId: null, comments: [] });
+
+  // ✅ Submit comment
+  const submitComment = async (id, content) => {
+    if (!content.trim()) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/images/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_email: userEmail, content }), // use user_email
+      });
+      const data = await res.json();
+      setCommentModal((prev) => ({
+        ...prev,
+        comments: [...prev.comments, data],
+      }));
+      setCommentsCount((prev) => ({
+        ...prev,
+        [id]: (prev[id] || 0) + 1,
+      }));
+      document.getElementById("newComment").value = ""; // clear textarea
+    } catch (err) {
+      console.error("Comment failed:", err);
+    }
+  };
+
+  // ✅ Lightbox controls
   const openLightbox = (idx) => setLightboxIndex(idx);
   const closeLightbox = () => setLightboxIndex(null);
   const showPrev = () =>
@@ -161,9 +227,7 @@ function IndexPage() {
 
           {images.length > 0 ? (
             <div
-              className={`grid gap-6 ${
-                isEditing ? "auto-rows-auto" : ""
-              }`} // ✅ let rows auto-size to content
+              className={`grid gap-6 ${isEditing ? "auto-rows-auto" : ""}`}
               style={{
                 gridTemplateColumns: isEditing
                   ? "repeat(auto-fill, minmax(200px, 1fr))"
@@ -183,7 +247,7 @@ function IndexPage() {
                         colors.galleryPage?.imageBoxes?.[idx] || "#ffffff",
                     }}
                   >
-                    {/* Image wrapper flex-grow */}
+                    {/* Image */}
                     <div className="flex-grow flex items-center justify-center w-full">
                       <img
                         src={img.src}
@@ -193,45 +257,26 @@ function IndexPage() {
                       />
                     </div>
 
-                    {/* Likes */}
-                    <div className="flex items-center gap-2 mt-3">
+                    {/* Likes + Comments Counts */}
+                    <div className="flex items-center gap-4 mt-3 text-gray-700">
                       <button
                         onClick={() => handleLike(img.id)}
-                        className="px-3 py-1 bg-pink-500 text-white rounded hover:bg-pink-600"
+                        className={`px-3 py-1 rounded ${
+                          likes[img.id]?.liked ? "bg-pink-600" : "bg-pink-500"
+                        } text-white`}
                       >
-                        ❤️ Like
+                        {likes[img.id]?.liked ? "💔 Unlike" : "❤️ Like"}
                       </button>
-                      <span className="text-gray-700">
-                        {likes[img.id] || 0} Likes
-                      </span>
-                    </div>
-
-                    {/* Comment area */}
-                    <div className="mt-4 w-full flex flex-col">
-                      <textarea
-                        value={comments[idx] || ""}
-                        onChange={(e) =>
-                          handleCommentChange(idx, e.target.value)
-                        }
-                        placeholder="Write a comment..."
-                        className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-400 outline-none min-h-[80px]"
-                        style={{
-                          color: colors.global?.text,
-                          backgroundColor: colors.global?.bg,
-                        }}
-                      />
+                      <span>{likes[img.id]?.count || 0} Likes</span>
                       <button
-                        onClick={() => handleCommentSubmit(idx)}
-                        className="mt-3 w-full px-5 py-2 rounded-lg shadow-md hover:opacity-90 transition font-medium"
-                        style={{
-                          backgroundColor: "#3B82F6",
-                          color: colors.global?.text,
-                        }}
+                        onClick={() => openComments(img.id)}
+                        className="text-blue-500 underline"
                       >
-                        Submit
+                        💬 {commentsCount[img.id] || 0} Comments
                       </button>
                     </div>
 
+                    {/* Edit controls */}
                     {isEditing && (
                       <>
                         <div className="mt-4 w-full">
@@ -308,6 +353,7 @@ function IndexPage() {
         </div>
       </div>
 
+      {/* ✅ Image Lightbox */}
       {lightboxIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 backdrop-blur-lg bg-black/40"></div>
@@ -337,6 +383,48 @@ function IndexPage() {
           >
             ›
           </button>
+        </div>
+      )}
+
+      {/* ✅ Comments Modal */}
+      {commentModal.open && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="absolute inset-0 bg-black/50"></div>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg z-50 relative">
+            <button
+              onClick={closeComments}
+              className="absolute top-3 right-3 text-gray-600 text-2xl"
+            >
+              ✕
+            </button>
+            <h2 className="text-xl font-bold mb-4">Comments</h2>
+            <div className="max-h-64 overflow-y-auto space-y-3 mb-4">
+              {commentModal.comments.map((c, i) => (
+                <div key={i} className="p-2 border-b border-gray-200">
+                  <p className="text-sm text-gray-800">{c.content}</p>
+                  <p className="text-xs text-gray-500">
+                    by {c.user_email || "guest@example.com"}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <textarea
+              id="newComment"
+              className="w-full p-2 border rounded"
+              placeholder="Write a comment..."
+            />
+            <button
+              onClick={() =>
+                submitComment(
+                  commentModal.imageId,
+                  document.getElementById("newComment").value
+                )
+              }
+              className="mt-3 px-4 py-2 bg-blue-500 text-white rounded"
+            >
+              Submit
+            </button>
+          </div>
         </div>
       )}
     </div>
