@@ -91,10 +91,11 @@ async def upload_image(
     album: str = Form(None),
     user_role: str = Depends(get_current_user_role)
 ):
-   # if user_role not in ["admin", "editor"]:
-    #       status_code=403,
-     #       detail="You do not have permission to upload images."
-      #  )
+    if user_role not in ["admin", "editor"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to upload images."
+        )
     try:
         # Upload to Cloudinary
         result = cloudinary_upload(
