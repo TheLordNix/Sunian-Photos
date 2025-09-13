@@ -1,3 +1,4 @@
+import AdminPage from "./pages/AdminPage"; // ⬅️ new import
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
@@ -11,27 +12,32 @@ import {
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 import LoginPage from "./pages/loginPage.jsx";
-import MainPage from "./pages/mainPage";
-import UploadPage from "./pages/uploadPage";
-import IndexPage from "./pages/indexPage";
+import MainPage from "./pages/mainPage.jsx";
+import UploadPage from "./pages/uploadPage.jsx";
+import IndexPage from "./pages/indexPage.jsx";
 import { ThemeProvider } from "./colorCustomiser";
 
-// Firebase config
+// Read Firebase config from Vite env variables (safer than hardcoding)
 const firebaseConfig = {
-  apiKey: "AIzaSyC7JQVSI1AlXuLD_k1FwPAkeic3E7kq9Yk",
-  authDomain: "sunianphotos.firebaseapp.com",
-  projectId: "sunianphotos",
-  storageBucket: "sunianphotos.appspot.com",
-  messagingSenderId: "71111238514",
-  appId: "1:71111238514:web:566a5c01642fa7241a33eb",
-  measurementId: "G-EEQ1KPN2VK",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Fallback to existing in case env vars missing (keeps earlier behavior)
+if (!firebaseConfig.apiKey) {
+  console.warn("Firebase env not found - falling back to embedded config (not recommended).");
+  // NOTE: you can keep the earlier hardcoded config here if necessary.
+}
+
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ProtectedRoute ensures only logged-in users can access
 function ProtectedRoute({ isLoggedIn, children }) {
   if (!isLoggedIn) return <Navigate to="/" replace />;
   return children;
@@ -42,53 +48,42 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
 
-  // Login
   const handleLogin = async (email, password) => {
     try {
       const userCred = await signInWithEmailAndPassword(auth, email, password);
-      console.log("✅ Login successful:", userCred.user);
       const token = await userCred.user.getIdToken();
-      // Store the token in local storage
       localStorage.setItem("authToken", token);
-
       localStorage.setItem("userEmail", email);
-      setIsLoggedIn(true); // ✅ Add this line to update the state
+      setIsLoggedIn(true);
       return null;
     } catch (error) {
-      console.error("❌ Login failed:", error.code, error.message);
       return error.message;
     }
   };
 
-  // Signup
   const handleSignUp = async (email, password) => {
     try {
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
-      console.log("✅ Signup successful:", userCred.user);
       const token = await userCred.user.getIdToken();
-      // Store the token in local storage
       localStorage.setItem("authToken", token);
-
-      localStorage.setItem("userEmail", email); // ✅ store email
-
+      localStorage.setItem("userEmail", email);
       const userDocRef = doc(db, "users", userCred.user.uid);
       await setDoc(userDocRef, { role: "visitor" }, { merge: true });
+      setIsLoggedIn(true);
       return null;
     } catch (error) {
-      console.error("❌ Signup failed:", error.code, error.message);
       return error.message;
     }
   };
 
-  // Logout
   const handleLogout = async () => {
     await signOut(auth);
     setIsLoggedIn(false);
     setUserRole(null);
     localStorage.removeItem("userEmail");
+    localStorage.removeItem("authToken");
   };
 
-  // Auth observer
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -97,11 +92,11 @@ function App() {
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) setUserRole(userDoc.data().role);
           else setUserRole("visitor");
-
-          localStorage.setItem("userEmail", user.email); // ensure email is stored
+          const token = await user.getIdToken();
+          localStorage.setItem("authToken", token);
+          localStorage.setItem("userEmail", user.email);
           setIsLoggedIn(true);
         } catch (err) {
-          console.error("Error fetching user role:", err);
           setIsLoggedIn(true);
         }
       } else {
@@ -119,7 +114,6 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public route */}
         <Route
           path="/"
           element={
@@ -130,8 +124,6 @@ function App() {
             )
           }
         />
-
-        {/* Protected pages */}
         <Route
           path="/main"
           element={
@@ -142,7 +134,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/upload"
           element={
@@ -153,7 +144,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/index"
           element={
@@ -164,8 +154,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:8000,http://localhost:8000/photos,http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:8000,http://localhost:5173"
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        populate_by_name = True   # ✅ allow alias mapping
+        populate_by_name = True
 
 settings = Settings()

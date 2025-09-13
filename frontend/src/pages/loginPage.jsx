@@ -33,46 +33,19 @@ function LoginPage({ handleLogin, handleSignUp }) {
         {error && <p className="text-red-500 mb-4">{error}</p>}
 
         <div className="space-y-4">
-          {/* Email */}
           <div className="text-left">
             <label className="block text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="border rounded px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
-              required
-            />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="border rounded px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           </div>
 
-          {/* Password */}
           <div className="text-left">
             <label className="block text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="border rounded px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
-              required
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="border rounded px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           </div>
 
-          {/* Buttons */}
           <div className="flex flex-col gap-3 mt-6">
-            <button
-              type="button"
-              onClick={onLoginClick}
-              className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={onSignUpClick}
-              className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition"
-            >
-              Sign Up
-            </button>
+            <button type="button" onClick={onLoginClick} className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition">Login</button>
+            <button type="button" onClick={onSignUpClick} className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition">Sign Up</button>
           </div>
         </div>
       </div>

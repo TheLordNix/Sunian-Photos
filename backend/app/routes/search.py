@@ -1,8 +1,16 @@
 from fastapi import APIRouter
-from app.utils.firebase_auth import db
+from app.config import settings
+import firebase_admin
+from firebase_admin import credentials, firestore
 from app.schemas import SearchQuery
+import datetime
 
-router = APIRouter()
+router = APIRouter(prefix="/search")
+
+if not firebase_admin._apps:
+    cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS)
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 @router.post("/")
 def search(payload: SearchQuery):
@@ -37,7 +45,7 @@ def search(payload: SearchQuery):
         # date range filter
         if payload.from_date or payload.to_date:
             uploaded_at = rec.get("uploaded_at")
-            if isinstance(uploaded_at, str):  # Firestore may store as string
+            if isinstance(uploaded_at, str):
                 uploaded_at = datetime.datetime.fromisoformat(uploaded_at)
             if payload.from_date and uploaded_at.date() < payload.from_date:
                 continue

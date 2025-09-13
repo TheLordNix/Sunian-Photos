@@ -14,7 +14,7 @@ function IndexPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
-  // ✅ Comments modal
+  // Comments modal
   const [commentModal, setCommentModal] = useState({
     open: false,
     imageId: null,
@@ -22,14 +22,15 @@ function IndexPage() {
   });
 
   const userEmail = localStorage.getItem("userEmail") || "guest@example.com";
+  const isGuest = userEmail === "guest@example.com";
 
-  // ✅ Fetch images
+  // Fetch images
   useEffect(() => {
     const fetchImages = async () => {
       try {
         const token = localStorage.getItem("authToken");
         const res = await fetch("http://localhost:8000/api/images", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) throw new Error("Failed to load images");
 
@@ -46,7 +47,6 @@ function IndexPage() {
         setImages(formatted);
         setOriginalImages(formatted);
 
-        // init likes + comments
         const initialLikes = {};
         const initialComments = {};
         imagesArray.forEach((img) => {
@@ -64,70 +64,22 @@ function IndexPage() {
         console.error("Error fetching images:", error);
       }
     };
-
     fetchImages();
   }, [userEmail]);
 
-
-  
-
-  // ✅ Resize
-  const resizeImage = (idx, size) => {
-    const newImages = [...images];
-    newImages[idx].size = size;
-    setImages(newImages);
-  };
-
-  // ✅ Delete
-  const deleteImage = async (idx) => {
-    const img = images[idx];
-    try {
-      const token = localStorage.getItem("authToken");
-      // Wait for the response and check if it was successful
-      const response = await fetch(`http://localhost:8000/api/images/${img.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      // Check if the response is successful (e.g., 200 OK or 204 No Content)
-      if (response.ok) {
-        setImages(images.filter((_, i) => i !== idx));
-        alert("Image deleted successfully!"); // Display a success message
-      } else {
-        // Handle server errors or unauthorized requests
-        const errorData = await response.json(); // Or response.text() if not JSON
-        console.error("Delete failed:", errorData.detail);
-        alert(`Error: ${errorData.detail}`); // Display the server error message
-      }
-    } catch (err) {
-      console.error("Delete failed:", err);
-      alert("A network error occurred."); // For network-related issues
-    }
-  };
-  const clearAll = () => {
-    setImages([]);
-  };
-
-  const reset = () => {
-    setImages(originalImages);
-  };
-
-  const save = () => {
-    setIsEditing(false);
-    alert("Changes saved!");
-  };
+  // Reorder
   const moveImage = async (idx, direction) => {
+    if (isGuest) return;
     const newImages = [...images];
     const swapIdx = idx + direction;
     if (swapIdx < 0 || swapIdx >= newImages.length) return;
 
-    // We do NOT update the UI yet.
-    // [newImages[idx], newImages[swapIdx]] = [newImages[swapIdx], newImages[idx]];
-    // setImages(newImages);
+    [newImages[idx], newImages[swapIdx]] = [newImages[swapIdx], newImages[idx]];
+    setImages(newImages);
 
     try {
       const token = localStorage.getItem("authToken");
-      const response = await fetch("http://localhost:8000/api/images/reorder", {
+      await fetch("http://localhost:8000/api/images/reorder", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -135,39 +87,63 @@ function IndexPage() {
         },
         body: JSON.stringify(newImages.map((img) => img.id)),
       });
-
-      if (!response.ok) {
-        // If the server returns a non-2xx status, it's a failure
-        const errorData = await response.json();
-        console.error("Reorder failed on server:", errorData);
-        alert(`Failed to save reorder: ${errorData.detail}`);
-        // Do NOT update UI
-      } else {
-        // Only update UI if the server confirms success
-        [newImages[idx], newImages[swapIdx]] = [newImages[swapIdx], newImages[idx]];
-        setImages(newImages);
-        alert("Image order saved successfully!");
-      }
     } catch (err) {
-      // Handle network errors (e.g., server is down)
       console.error("Reorder failed:", err);
-      alert("A network error occurred. Please try again.");
     }
   };
-  // ✅ Likes toggle
-  const handleLike = async (id) => {
+
+  // Resize
+  const resizeImage = (idx, size) => {
+    if (isGuest) return;
+    const newImages = [...images];
+    newImages[idx].size = size;
+    setImages(newImages);
+  };
+
+  // Delete
+  const deleteImage = async (idx) => {
+    if (isGuest) return;
+    const img = images[idx];
     try {
       const token = localStorage.getItem("authToken");
+      await fetch(`http://localhost:8000/api/images/${img.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setImages(images.filter((_, i) => i !== idx));
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+  };
 
+  const clearAll = () => {
+    if (!isGuest) setImages([]);
+  };
+  const reset = () => {
+    if (!isGuest) setImages(originalImages);
+  };
+  const save = () => {
+    if (!isGuest) {
+      setIsEditing(false);
+      alert("Changes saved!");
+    }
+  };
+
+  // Likes toggle
+  const handleLike = async (id) => {
+    if (isGuest) return;
+    try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(`http://localhost:8000/api/images/${id}/like`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ user_email: userEmail }), // use user_email
+        body: JSON.stringify({ user_email: userEmail }),
       });
 
+      if (!res.ok) throw new Error("Like failed");
       const data = await res.json();
       setLikes((prev) => ({
         ...prev,
@@ -178,10 +154,17 @@ function IndexPage() {
     }
   };
 
-  // ✅ Comments modal open
+  // Comments modal
   const openComments = async (id) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/images/${id}/comments`);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(
+        `http://localhost:8000/api/images/${id}/comments`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch comments");
       const data = await res.json();
       setCommentModal({ open: true, imageId: id, comments: data });
     } catch (err) {
@@ -192,15 +175,23 @@ function IndexPage() {
   const closeComments = () =>
     setCommentModal({ open: false, imageId: null, comments: [] });
 
-  // ✅ Submit comment
   const submitComment = async (id, content) => {
+    if (isGuest) return;
     if (!content.trim()) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/images/${id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_email: userEmail, content }), // use user_email
-      });
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(
+        `http://localhost:8000/api/images/${id}/comments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ user_email: userEmail, content }),
+        }
+      );
+      if (!res.ok) throw new Error("Comment failed");
       const data = await res.json();
       setCommentModal((prev) => ({
         ...prev,
@@ -210,13 +201,13 @@ function IndexPage() {
         ...prev,
         [id]: (prev[id] || 0) + 1,
       }));
-      document.getElementById("newComment").value = ""; // clear textarea
+      document.getElementById("newComment").value = "";
     } catch (err) {
       console.error("Comment failed:", err);
     }
   };
 
-  // ✅ Lightbox controls
+  // Lightbox
   const openLightbox = (idx) => setLightboxIndex(idx);
   const closeLightbox = () => setLightboxIndex(null);
   const showPrev = () =>
@@ -243,12 +234,14 @@ function IndexPage() {
             >
               ←
             </button>
-            <button
-              onClick={() => setIsEditing((prev) => !prev)}
-              className="text-gray-600 hover:text-gray-800 transition text-lg font-semibold"
-            >
-              {isEditing ? "✔ Done" : "✎ Edit"}
-            </button>
+            {!isGuest && (
+              <button
+                onClick={() => setIsEditing((prev) => !prev)}
+                className="text-gray-600 hover:text-gray-800 transition text-lg font-semibold"
+              >
+                {isEditing ? "✔ Done" : "✎ Edit"}
+              </button>
+            )}
           </div>
 
           <h1
@@ -290,16 +283,18 @@ function IndexPage() {
                       />
                     </div>
 
-                    {/* Likes + Comments Counts */}
+                    {/* Likes + Comments */}
                     <div className="flex items-center gap-4 mt-3 text-gray-700">
-                      <button
-                        onClick={() => handleLike(img.id)}
-                        className={`px-3 py-1 rounded ${
-                          likes[img.id]?.liked ? "bg-pink-600" : "bg-pink-500"
-                        } text-white`}
-                      >
-                        {likes[img.id]?.liked ? "💔 Unlike" : "❤️ Like"}
-                      </button>
+                      {!isGuest && (
+                        <button
+                          onClick={() => handleLike(img.id)}
+                          className={`px-3 py-1 rounded ${
+                            likes[img.id]?.liked ? "bg-pink-600" : "bg-pink-500"
+                          } text-white`}
+                        >
+                          {likes[img.id]?.liked ? "💔 Unlike" : "❤ Like"}
+                        </button>
+                      )}
                       <span>{likes[img.id]?.count || 0} Likes</span>
                       <button
                         onClick={() => openComments(img.id)}
@@ -310,7 +305,7 @@ function IndexPage() {
                     </div>
 
                     {/* Edit controls */}
-                    {isEditing && (
+                    {isEditing && !isGuest && (
                       <>
                         <div className="mt-4 w-full">
                           <label className="text-sm text-gray-600">
@@ -359,7 +354,7 @@ function IndexPage() {
             </p>
           )}
 
-          {isEditing && (
+          {isEditing && !isGuest && (
             <div className="flex justify-between mt-8">
               <button
                 onClick={clearAll}
@@ -386,7 +381,7 @@ function IndexPage() {
         </div>
       </div>
 
-      {/* ✅ Image Lightbox */}
+      {/* Lightbox */}
       {lightboxIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 backdrop-blur-lg bg-black/40"></div>
@@ -419,7 +414,7 @@ function IndexPage() {
         </div>
       )}
 
-      {/* ✅ Comments Modal */}
+      {/* Comments Modal */}
       {commentModal.open && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 bg-black/50"></div>
@@ -441,22 +436,26 @@ function IndexPage() {
                 </div>
               ))}
             </div>
-            <textarea
-              id="newComment"
-              className="w-full p-2 border rounded"
-              placeholder="Write a comment..."
-            />
-            <button
-              onClick={() =>
-                submitComment(
-                  commentModal.imageId,
-                  document.getElementById("newComment").value
-                )
-              }
-              className="mt-3 px-4 py-2 bg-blue-500 text-white rounded"
-            >
-              Submit
-            </button>
+            {!isGuest && (
+              <>
+                <textarea
+                  id="newComment"
+                  className="w-full p-2 border rounded"
+                  placeholder="Write a comment..."
+                />
+                <button
+                  onClick={() =>
+                    submitComment(
+                      commentModal.imageId,
+                      document.getElementById("newComment").value
+                    )
+                  }
+                  className="mt-3 px-4 py-2 bg-blue-500 text-white rounded"
+                >
+                  Submit
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
