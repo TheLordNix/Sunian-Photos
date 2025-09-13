@@ -42,6 +42,44 @@ function PaintBrushTool({ currentPage, imageCount = 0 }) {
     });
   };
 
+  const handleExport = () => {
+    const dataStr = JSON.stringify(colors, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "themeColors.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+
+        // ✅ ensure shape is correct
+        if (!imported.global || !imported.mainPage || !imported.uploadPage || !imported.galleryPage) {
+          alert("Invalid theme format!");
+          return;
+        }
+
+        setColors(imported);
+
+        // ✅ also update localStorage so reload persists
+        localStorage.setItem("themeColors", JSON.stringify(imported));
+      } catch {
+        alert("Invalid theme file!");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   let editableFields = [];
 
   if (currentPage === "main") {
@@ -116,12 +154,31 @@ function PaintBrushTool({ currentPage, imageCount = 0 }) {
             </label>
           ))}
 
-          <button
-            onClick={handleReset}
-            className="mt-2 px-4 py-2 bg-red-500 text-white rounded-lg shadow-md hover:bg-red-600 transition"
-          >
-            Reset to Default
-          </button>
+          <div className="flex flex-col gap-2 mt-2">
+            <button
+              onClick={handleReset}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md hover:bg-red-600 transition"
+            >
+              Reset to Default
+            </button>
+
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition"
+            >
+              Export Theme
+            </button>
+
+            <label className="px-4 py-2 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600 transition text-center cursor-pointer">
+              Import Theme
+              <input
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={handleImport}
+              />
+            </label>
+          </div>
         </div>
       )}
     </div>
