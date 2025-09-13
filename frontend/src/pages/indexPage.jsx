@@ -68,29 +68,8 @@ function IndexPage() {
     fetchImages();
   }, [userEmail]);
 
-  // ✅ Reorder
-  const moveImage = async (idx, direction) => {
-    const newImages = [...images];
-    const swapIdx = idx + direction;
-    if (swapIdx < 0 || swapIdx >= newImages.length) return;
 
-    [newImages[idx], newImages[swapIdx]] = [newImages[swapIdx], newImages[idx]];
-    setImages(newImages);
-
-    try {
-      const token = localStorage.getItem("authToken");
-      await fetch("http://localhost:8000/api/images/reorder", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(newImages.map((img) => img.id)),
-      });
-    } catch (err) {
-      console.error("Reorder failed:", err);
-    }
-  };
+  
 
   // ✅ Resize
   const resizeImage = (idx, size) => {
@@ -104,23 +83,77 @@ function IndexPage() {
     const img = images[idx];
     try {
       const token = localStorage.getItem("authToken");
-      await fetch(`http://localhost:8000/api/images/${img.id}`, {
+      // Wait for the response and check if it was successful
+      const response = await fetch(`http://localhost:8000/api/images/${img.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setImages(images.filter((_, i) => i !== idx));
+
+      // Check if the response is successful (e.g., 200 OK or 204 No Content)
+      if (response.ok) {
+        setImages(images.filter((_, i) => i !== idx));
+        alert("Image deleted successfully!"); // Display a success message
+      } else {
+        // Handle server errors or unauthorized requests
+        const errorData = await response.json(); // Or response.text() if not JSON
+        console.error("Delete failed:", errorData.detail);
+        alert(`Error: ${errorData.detail}`); // Display the server error message
+      }
     } catch (err) {
       console.error("Delete failed:", err);
+      alert("A network error occurred."); // For network-related issues
     }
   };
+  const clearAll = () => {
+    setImages([]);
+  };
 
-  const clearAll = () => setImages([]);
-  const reset = () => setImages(originalImages);
+  const reset = () => {
+    setImages(originalImages);
+  };
+
   const save = () => {
     setIsEditing(false);
     alert("Changes saved!");
   };
+  const moveImage = async (idx, direction) => {
+    const newImages = [...images];
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= newImages.length) return;
 
+    // We do NOT update the UI yet.
+    // [newImages[idx], newImages[swapIdx]] = [newImages[swapIdx], newImages[idx]];
+    // setImages(newImages);
+
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch("http://localhost:8000/api/images/reorder", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newImages.map((img) => img.id)),
+      });
+
+      if (!response.ok) {
+        // If the server returns a non-2xx status, it's a failure
+        const errorData = await response.json();
+        console.error("Reorder failed on server:", errorData);
+        alert(`Failed to save reorder: ${errorData.detail}`);
+        // Do NOT update UI
+      } else {
+        // Only update UI if the server confirms success
+        [newImages[idx], newImages[swapIdx]] = [newImages[swapIdx], newImages[idx]];
+        setImages(newImages);
+        alert("Image order saved successfully!");
+      }
+    } catch (err) {
+      // Handle network errors (e.g., server is down)
+      console.error("Reorder failed:", err);
+      alert("A network error occurred. Please try again.");
+    }
+  };
   // ✅ Likes toggle
   const handleLike = async (id) => {
     try {

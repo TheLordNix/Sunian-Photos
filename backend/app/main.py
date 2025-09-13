@@ -2,16 +2,17 @@ import os
 import uuid
 import datetime
 from typing import List, Optional
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Path, Body
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Path, Body, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 import cloudinary
 from cloudinary.uploader import upload as cloudinary_upload
 from app.config import settings
 from app.schemas import ImageCreateResp
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth
 from pydantic import BaseModel
-
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Response # Add this import at the top
 # -------------------------
 # Configure Cloudinary
 # -------------------------
@@ -45,6 +46,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+bearer_scheme = HTTPBearer()
+
+async def get_current_user_role(token: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    try:
+        print("Received Authorization Header:", token.credentials)
+        decoded_token = auth.verify_id_token(token.credentials)
+        uid = decoded_token['uid']
+        
+        print("Decoded UID:", uid)
+        
+        user_doc_ref = db.collection('users').document(uid)
+        user_doc = user_doc_ref.get()
+        if not user_doc.exists:
+            print("User document not found, returning 'visitor'")
+            return "visitor"
+        
+        user_data = user_doc.to_dict()
+        user_role = user_data.get('role', 'visitor')
+        print("User Role from Firestore:", user_role)
+        return user_role
+
+    except Exception as e:
+        print("Authentication Failed:", e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authentication credentials: {e}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 # -------------------------
 # Health Check
 # -------------------------
@@ -59,8 +88,13 @@ def health():
 @app.post("/api/upload", response_model=ImageCreateResp)
 async def upload_image(
     file: UploadFile = File(...),
-    album: str = Form(None)
+    album: str = Form(None),
+    user_role: str = Depends(get_current_user_role)
 ):
+   # if user_role not in ["admin", "editor"]:
+    #       status_code=403,
+     #       detail="You do not have permission to upload images."
+      #  )
     try:
         # Upload to Cloudinary
         result = cloudinary_upload(
@@ -126,29 +160,41 @@ def list_images():
 # -------------------------
 # Delete Image
 # -------------------------
-@app.delete("/api/images/{image_id}")
-def delete_image(image_id: str = Path(..., description="ID of the image to delete")):
+
+
+@app.delete("/api/images/{image_id}", status_code=204)
+def delete_image(image_id: str = Path(..., description="ID of the image to delete"),user_role: str = Depends(get_current_user_role)):
+    if user_role not in ["admin", "editor"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to delete images."
+        )
     try:
         doc_ref = db.collection("images").document(image_id)
         doc = doc_ref.get()
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Image not found")
 
-        # Optionally delete from Cloudinary
-        # public_id = doc.to_dict()["url"].split("/")[-1].split(".")[0]
-        # cloudinary.uploader.destroy(public_id)
-
         doc_ref.delete()
-        return {"status": "deleted", "id": image_id}
+        
+        # Return a 204 status code with no content
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete image: {str(e)}")
-
-
 # -------------------------
 # Reorder Images
 # -------------------------
 @app.put("/api/images/reorder")
-def reorder_images(order: List[str] = Body(..., description="List of image IDs in new order")):
+def reorder_images(
+    order: List[str] = Body(..., description="List of image IDs in new order"),
+    user_role: str = Depends(get_current_user_role)
+):
+    if user_role not in ["admin", "editor"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to reorder images."
+        )
     try:
         batch = db.batch()
         for index, image_id in enumerate(order):

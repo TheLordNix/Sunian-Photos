@@ -47,7 +47,12 @@ function App() {
     try {
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       console.log("✅ Login successful:", userCred.user);
-      localStorage.setItem("userEmail", email); // ✅ store email
+      const token = await userCred.user.getIdToken();
+      // Store the token in local storage
+      localStorage.setItem("authToken", token);
+
+      localStorage.setItem("userEmail", email);
+      setIsLoggedIn(true); // ✅ Add this line to update the state
       return null;
     } catch (error) {
       console.error("❌ Login failed:", error.code, error.message);
@@ -60,6 +65,10 @@ function App() {
     try {
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
       console.log("✅ Signup successful:", userCred.user);
+      const token = await userCred.user.getIdToken();
+      // Store the token in local storage
+      localStorage.setItem("authToken", token);
+
       localStorage.setItem("userEmail", email); // ✅ store email
 
       const userDocRef = doc(db, "users", userCred.user.uid);
