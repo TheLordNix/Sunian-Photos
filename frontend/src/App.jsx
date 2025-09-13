@@ -16,7 +16,7 @@ import UploadPage from "./pages/uploadPage";
 import IndexPage from "./pages/indexPage";
 import { ThemeProvider } from "./colorCustomiser";
 
-// ✅ Firebase configuration
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyC7JQVSI1AlXuLD_k1FwPAkeic3E7kq9Yk",
   authDomain: "sunianphotos.firebaseapp.com",
@@ -27,16 +27,13 @@ const firebaseConfig = {
   measurementId: "G-EEQ1KPN2VK",
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// 🔒 ProtectedRoute ensures only logged-in users can access certain pages
+// ProtectedRoute ensures only logged-in users can access
 function ProtectedRoute({ isLoggedIn, children }) {
-  if (!isLoggedIn) {
-    return <Navigate to="/" replace />;
-  }
+  if (!isLoggedIn) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -45,11 +42,12 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
 
-  // --- Authentication Functions ---
+  // Login
   const handleLogin = async (email, password) => {
     try {
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       console.log("✅ Login successful:", userCred.user);
+      localStorage.setItem("userEmail", email); // ✅ store email
       return null;
     } catch (error) {
       console.error("❌ Login failed:", error.code, error.message);
@@ -57,15 +55,15 @@ function App() {
     }
   };
 
+  // Signup
   const handleSignUp = async (email, password) => {
     try {
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
       console.log("✅ Signup successful:", userCred.user);
+      localStorage.setItem("userEmail", email); // ✅ store email
 
-      // ✅ Save user in Firestore if not exists
       const userDocRef = doc(db, "users", userCred.user.uid);
       await setDoc(userDocRef, { role: "visitor" }, { merge: true });
-
       return null;
     } catch (error) {
       console.error("❌ Signup failed:", error.code, error.message);
@@ -73,31 +71,32 @@ function App() {
     }
   };
 
+  // Logout
   const handleLogout = async () => {
     await signOut(auth);
     setIsLoggedIn(false);
     setUserRole(null);
+    localStorage.removeItem("userEmail");
   };
 
-  // --- Auth State Observer ---
+  // Auth observer
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
           const userDocRef = doc(db, "users", user.uid);
           const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUserRole(userData.role);
-          } else {
-            setUserRole("visitor");
-          }
+          if (userDoc.exists()) setUserRole(userDoc.data().role);
+          else setUserRole("visitor");
+
+          localStorage.setItem("userEmail", user.email); // ensure email is stored
           setIsLoggedIn(true);
         } catch (err) {
           console.error("Error fetching user role:", err);
           setIsLoggedIn(true);
         }
       } else {
+        localStorage.removeItem("userEmail");
         setUserRole(null);
         setIsLoggedIn(false);
       }
@@ -106,14 +105,12 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+  if (isLoading) return <div>Loading...</div>;
 
   return (
     <Router>
       <Routes>
-        {/* Public route (Login) */}
+        {/* Public route */}
         <Route
           path="/"
           element={
