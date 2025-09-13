@@ -1,7 +1,8 @@
 import os
 import uuid
 import datetime
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from typing import List, Optional
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Path, Body
 from fastapi.middleware.cors import CORSMiddleware
 import cloudinary
 from cloudinary.uploader import upload as cloudinary_upload
@@ -9,6 +10,7 @@ from app.config import settings
 from app.schemas import ImageCreateResp
 import firebase_admin
 from firebase_admin import credentials, firestore
+from pydantic import BaseModel
 
 # -------------------------
 # Configure Cloudinary
@@ -72,8 +74,9 @@ async def upload_image(
             raise HTTPException(status_code=500, detail="Upload failed")
 
         # Prepare image data
+        image_id = str(uuid.uuid4())
         image_data = {
-            "id": str(uuid.uuid4()),
+            "id": image_id,
             "filename": file.filename,
             "url": result.get("secure_url"),
             "mime_type": result.get("resource_type"),
@@ -84,10 +87,11 @@ async def upload_image(
             "caption": None,
             "alt_text": None,
             "uploaded_at": datetime.datetime.utcnow().isoformat(),
+            "order": int(datetime.datetime.utcnow().timestamp()),  # default order by time
         }
 
         # Save to Firestore
-        db.collection("images").document(image_data["id"]).set(image_data)
+        db.collection("images").document(image_id).set(image_data)
 
         return ImageCreateResp(
             id=image_data["id"],
@@ -107,16 +111,53 @@ async def upload_image(
 
 
 # -------------------------
-# Get All Images
+# Get All Images (ordered)
 # -------------------------
 @app.get("/api/images")
 def list_images():
     try:
-        docs = db.collection("images").stream()
+        docs = db.collection("images").order_by("order").stream()
         images = [doc.to_dict() for doc in docs]
         return {"images": images}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch images: {str(e)}")
+
+
+# -------------------------
+# Delete Image
+# -------------------------
+@app.delete("/api/images/{image_id}")
+def delete_image(image_id: str = Path(..., description="ID of the image to delete")):
+    try:
+        doc_ref = db.collection("images").document(image_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        # Optionally delete from Cloudinary
+        # public_id = doc.to_dict()["url"].split("/")[-1].split(".")[0]
+        # cloudinary.uploader.destroy(public_id)
+
+        doc_ref.delete()
+        return {"status": "deleted", "id": image_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete image: {str(e)}")
+
+
+# -------------------------
+# Reorder Images
+# -------------------------
+@app.put("/api/images/reorder")
+def reorder_images(order: List[str] = Body(..., description="List of image IDs in new order")):
+    try:
+        batch = db.batch()
+        for index, image_id in enumerate(order):
+            doc_ref = db.collection("images").document(image_id)
+            batch.update(doc_ref, {"order": index})
+        batch.commit()
+        return {"status": "ok", "order": order}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reorder images: {str(e)}")
 
 
 # -------------------------
@@ -128,3 +169,113 @@ async def upload_image_compat(
     album: str = Form(None)
 ):
     return await upload_image(file=file, album=album)
+
+
+
+# ------------------------- Pydantic models (update Comment model) -------------------------
+from pydantic import BaseModel, Field
+from typing import Optional
+import datetime as _dt
+
+class CommentCreate(BaseModel):
+    # allow both user_email and legacy user_id (optional)
+    user_email: Optional[str] = None
+    user_id: Optional[str] = None
+    content: str
+
+class CommentOut(BaseModel):
+    user_email: Optional[str] = None
+    user_id: Optional[str] = None
+    content: str
+    created_at: str
+
+# Simple response model for like toggle
+class LikeToggleResp(BaseModel):
+    liked: bool
+    total_likes: int
+
+# ------------------------- Like toggle endpoint -------------------------
+@app.post("/api/images/{image_id}/like", response_model=LikeToggleResp)
+def toggle_like(image_id: str, payload: dict = Body(...)):
+    """
+    Toggle a like for an image. Accepts JSON body: { "user_email": "x@y.com" } (preferred)
+    or { "user_id": "someId" } (legacy).
+    Uses Firestore ArrayUnion/ArrayRemove to safely update arrays atomically.
+    """
+    # extract identifier (prefer email)
+    user_email = payload.get("user_email")
+    user_id = payload.get("user_id")
+    identifier = user_email or user_id
+
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Missing user_email or user_id in body")
+
+    try:
+        doc_ref = db.collection("images").document(image_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        # Ensure likes field exists and is a list
+        data = doc.to_dict()
+        likes = data.get("likes", [])
+        if not isinstance(likes, list):
+            likes = []
+
+        # If user already in likes -> remove, else add
+        if identifier in likes:
+            doc_ref.update({"likes": firestore.ArrayRemove([identifier])})
+            liked = False
+        else:
+            doc_ref.update({"likes": firestore.ArrayUnion([identifier])})
+            liked = True
+
+        # fetch final state to return accurate total (atomic ops already applied)
+        final_doc = doc_ref.get()
+        final_likes = final_doc.to_dict().get("likes", []) or []
+        return {"liked": liked, "total_likes": len(final_likes)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to toggle like: {str(e)}")
+
+# ------------------------- Add comment endpoint -------------------------
+@app.post("/api/images/{image_id}/comments", response_model=CommentOut)
+def add_comment(image_id: str, comment: CommentCreate):
+    """
+    Add a comment: stores user_email (preferred) or user_id and content, with created_at timestamp.
+    """
+    identifier_email = comment.user_email
+    identifier_id = comment.user_id
+    if not identifier_email and not identifier_id:
+        # You may allow anonymous comments, but if not, return error. For now we accept missing and store 'guest'.
+        # If you want to require logged-in, change this to raise 401/400.
+        pass
+
+    try:
+        comment_data = {
+            "user_email": identifier_email,
+            "user_id": identifier_id,
+            "content": comment.content,
+            "created_at": datetime.datetime.utcnow().isoformat(),
+        }
+        # store in subcollection "comments"
+        db.collection("images").document(image_id).collection("comments").add(comment_data)
+        return comment_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add comment: {str(e)}")
+
+# ------------------------- List comments -------------------------
+@app.get("/api/images/{image_id}/comments", response_model=List[CommentOut])
+def list_comments(image_id: str):
+    try:
+        docs = (
+            db.collection("images")
+            .document(image_id)
+            .collection("comments")
+            .order_by("created_at")
+            .stream()
+        )
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch comments: {str(e)}")
